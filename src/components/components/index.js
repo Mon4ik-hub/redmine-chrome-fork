@@ -8,6 +8,7 @@ import Line from './Line.vue'
 import ListGroup from './ListGroup.vue'
 import ListGroupItem from './ListGroupItem.vue'
 import Row from './Row.vue'
+import Toast from './Toast.vue'
 
 import MultipleSelect from 'multiple-select/dist/multiple-select-vue'
 
@@ -22,5 +23,6 @@ export default {
   ListGroup,
   ListGroupItem,
   Row,
+  Toast,
   MultipleSelect
 }

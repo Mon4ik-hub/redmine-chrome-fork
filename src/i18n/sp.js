@@ -4,6 +4,7 @@ export default {
   author: 'Autor: ',
   chinese: 'Chino',
   copy_issue_id: 'Copiar el ID del incidente',
+  copy_success: '¡Copia exitosa!',
   description: 'Descripción: ',
   desktop_notify: 'Notificación en el Escritorio',
   english: 'Inglés',

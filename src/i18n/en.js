@@ -4,6 +4,7 @@ export default {
   author: 'Author: ',
   chinese: 'Chinese',
   copy_issue_id: 'Copy the issue id',
+  copy_success: 'Copy successful!',
   description: 'Description: ',
   desktop_notify: 'Desktop notification',
   english: 'English',

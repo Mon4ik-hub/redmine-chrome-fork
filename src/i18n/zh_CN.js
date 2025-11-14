@@ -4,6 +4,7 @@ export default {
   author: '作者：',
   chinese: '简体中文',
   copy_issue_id: '复制问题编号',
+  copy_success: '复制成功！',
   description: '描述：',
   desktop_notify: '桌面通知',
   english: '英文',

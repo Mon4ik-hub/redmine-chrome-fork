@@ -4,6 +4,7 @@ export default {
   author: 'Автор: ',
   chinese: 'Chinese',
   copy_issue_id: 'Копировать номер задачи',
+  copy_success: 'Скопировано!',
   description: 'Описание: ',
   desktop_notify: 'Уведомления на рабочем столе',
   english: 'English',

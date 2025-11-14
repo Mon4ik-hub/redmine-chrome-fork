@@ -1,12 +1,17 @@
 <template>
   <div class="issues-list">
+    <Toast
+      ref="toast"
+      :message="t('copy_success')"
+    />
     <div
       v-for="(issue, index) in sortedIssues"
       :key="issue.id + issue.updated_on"
       class="list-group-item"
       :class="{ 'fw-bold': isUnread(issue) }"
+      @click="markIssueRead(issue)"
     >
-      <div class="d-flex justify-content-between align-items-start">
+      <div class="d-flex justify-content-between align-items-center">
         <div>
           <span :class="`badge bg-${issue.priority.name.toLowerCase()}`">
             {{ issue.priority.name }}
@@ -20,20 +25,24 @@
           </div>
         </div>
       </div>
-      <div class="mt-2 d-flex align-items-start">
+      <div class="mt-2 d-flex align-items-center gap-2">
         <button
-          class="btn btn-sm btn-link p-0 me-2"
+          class="btn btn-sm btn-link p-0 copy-btn"
           :title="t('copy_issue_id')"
-          @click.stop="Utils.copyIssueId(issue.id)"
+          @click.stop="handleCopyIssueId(issue.id, $event)"
         >
           <i class="fas fa-copy" />
         </button>
         <a
           href="#"
           target="_blank"
-          class="text-decoration-none"
-          @click.prevent="selectIssue(issue, index)"
+          class="issue-link text-decoration-none"
+          @click.prevent.stop="selectIssue(issue, index)"
         >
+          <span
+            v-if="isUnread(issue)"
+            class="unread-indicator"
+          />
           {{ issue.tracker.name }} #{{ issue.id }}: {{ issue.subject }}
         </a>
       </div>
@@ -58,9 +67,11 @@
 import { useI18n } from 'vue-i18n'
 import Utils from '@/utils'
 import dayjs from 'dayjs'
-import { computed, nextTick } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 
 const { t } = useI18n()
+
+const toast = ref()
 
 const props = defineProps({
   sortedIssues: {
@@ -80,10 +91,19 @@ const isUnread = computed(() => issue => props.currentData.unreadList.includes(U
 
 const formatTime = dateString => dayjs(dateString).fromNow()
 
-const selectIssue = (issue, index) => {
+const handleCopyIssueId = async (issueId, event) => {
+  await Utils.copyIssueId(issueId)
+  toast.value.show(event)
+}
+
+const markIssueRead = (issue) => {
   if (isUnread.value(issue)) {
     emit('mark-issue-read', Utils.getUUID(issue))
   }
+}
+
+const selectIssue = (issue, index) => {
+  markIssueRead(issue)
   nextTick(() => {
     emit('select-issue', issue, index)
   })
@@ -92,12 +112,55 @@ const selectIssue = (issue, index) => {
 
 <style lang="scss" scoped>
 .list-group-item {
-  padding: 5px 0;
+  padding: 8px 0;
   border-bottom: 1px solid var(--bs-border-color);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  &:hover {
+    background-color: #f8f9fa;
+  }
 
   &:last-child {
     border-bottom: none;
   }
+}
+
+.issue-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+
+  .unread-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--bs-primary);
+    margin-right: 8px;
+    flex-shrink: 0;
+    margin-top: 1px; /* 微调指示器垂直位置 */
+  }
+}
+
+.copy-btn {
+  width: 18px;
+  height: 18px;
+  font-size: 12px;
+  color: #6c757d; /* 灰色文本 */
+
+  &:hover {
+    color: #495057; /* 鼠标悬停加深颜色 */
+  }
+
+  i {
+    font-size: 12px;
+  }
+}
+
+.gap-2 {
+  gap: 6px !important;
 }
 
 .badge {

@@ -90,7 +90,18 @@ export default {
     }
   },
 
-  copyIssueId (id) {
-    navigator.clipboard.writeText(`#${id}`)
+  async copyIssueId (id) {
+    try {
+      await navigator.clipboard.writeText(`#${id}`)
+    } catch {
+      // Fallback to textarea if clipboard API fails
+      const textarea = document.createElement('textarea')
+
+      textarea.value = `#${id}`
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
   }
 }

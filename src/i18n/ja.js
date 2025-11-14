@@ -4,6 +4,7 @@ export default {
   author: '作成者：',
   chinese: '中国語',
   copy_issue_id: 'チケット番号コピー',
+  copy_success: 'コピー成功！',
   description: '説明：',
   desktop_notify: 'デスクトップ通知',
   english: '英語',

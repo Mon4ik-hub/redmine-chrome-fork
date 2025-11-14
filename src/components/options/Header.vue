@@ -3,6 +3,7 @@
     <Cols :cols="7">
       <h3>
         {{ t('title') }}
+        <span class="version ml5">v{{ version }}</span>
         <a
           class="ml10"
           href="https://github.com/wenzhixin/redmine-chrome/issues"
@@ -43,7 +44,9 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Utils from '@/utils'
 import languages, { languageCodeToKey } from '@/i18n'
+import pkg from '@/../package.json'
 
+const version = pkg.version
 const { t } = useI18n()
 const language = ref('zh_CN')
 

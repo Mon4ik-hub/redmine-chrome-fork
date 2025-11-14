@@ -15,6 +15,23 @@ Redmine notification tools for chrome extension.[![Build Status](https://travis-
 
 ## Changelog
 
+### 3.0.2 (2025-11-14)
+
+#### Improvements
+
+* Update lastRead timestamp when marking issue as read
+* Add Toast component for success notifications
+* Display version number in options page header
+* Add copy success notification when copying issue ID
+* Improve copy functionality with fallback to textarea if clipboard API fails
+* Add unread indicator to issue items
+* Enhance UI layout and styling in popup
+
+#### Fixes
+
+* Fix navigation link error in popup
+* Fix issue selection and copy button event handling
+
 ### 3.0.1 (2025-11-14)
 
 #### Improvements
