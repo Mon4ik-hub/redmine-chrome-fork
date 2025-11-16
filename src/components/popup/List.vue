@@ -131,7 +131,6 @@ const selectIssue = (issue, index) => {
 .issue-link {
   display: inline-flex;
   align-items: center;
-  font-size: 14px;
 
   .unread-indicator {
     width: 8px;

@@ -108,7 +108,7 @@ class Background {
         if (lastRead < updatedOn) {
           if (!readList.includes(uuid)) {
             count++
-            unreadList.push(Utils.getUUID(issue))
+            unreadList.push(uuid)
           }
         }
         if (lastNotified < updatedOn) {

@@ -41,10 +41,10 @@ const currentRole = computed(() => roles.value[roleIndex.value])
 const currentData = computed(() => data.value[currentRole.value] ||
   { issues: [], unreadList: [], readList: [] })
 const isUnread = issue => {
-  if (!currentData.value?.unreadList) return false
-  const iuid = `${issue.id}${new Date(issue.updated_on).getTime()}`
-
-  return currentData.value.unreadList.includes(iuid)
+  if (!currentData.value?.unreadList) {
+    return false
+  }
+  return currentData.value.unreadList.includes(Utils.getUUID(issue))
 }
 const sortedIssues = computed(() => {
   if (!currentData.value?.issues) {
@@ -52,8 +52,17 @@ const sortedIssues = computed(() => {
   }
 
   const getValueByString = (obj, path) => {
-    if (!obj || !path) return ''
+    if (!obj || !path) {
+      return ''
+    }
     return path.split('.').reduce((o, p) => (o || {})[p], obj)
+  }
+  // Create a reusable descending comparator function
+  const compareDesc = (field, defaultValue) => (a, b) => {
+    const aVal = getValueByString(a, field) || defaultValue
+    const bVal = getValueByString(b, field) || defaultValue
+
+    return aVal < bVal ? 1 : aVal > bVal ? -1 : 0
   }
   const issues = [...currentData.value.issues]
 
@@ -69,18 +78,14 @@ const sortedIssues = computed(() => {
       }
     })
 
+    // Sort unread issues by priority
+    unread.sort(compareDesc('priority.id', 0))
     // Sort read issues by priority
-    read.sort((a, b) => (b.priority?.id || 0) - (a.priority?.id || 0))
+    read.sort(compareDesc('priority.id', 0))
     return [...unread, ...read]
   }
   // Sort by specified field
-  issues.sort((a, b) => {
-    const aVal = getValueByString(a, order.value)
-    const bVal = getValueByString(b, order.value)
-
-    return aVal < bVal ? 1 : aVal > bVal ? -1 : 0
-  })
-
+  issues.sort(compareDesc(order.value))
 
   return issues
 })
@@ -128,26 +133,21 @@ const saveData = async () => {
 const markAllRead = async () => {
   const curData = data.value[currentRole.value]
 
-  if (curData) {
-    curData.unreadList = []
-    curData.readList = []
-    curData.lastRead = Date.now()
-    await saveSettings()
-    await saveData()
-  }
+  curData.unreadList = []
+  curData.readList = []
+  curData.lastRead = Date.now()
+  await saveSettings()
+  await saveData()
 }
 
 const markIssueRead = async uuid => {
   const curData = data.value[currentRole.value]
+  const index = curData.unreadList.indexOf(uuid)
 
-  if (curData && curData.unreadList) {
-    const index = curData.unreadList.indexOf(uuid)
-
-    if (index !== -1) {
-      curData.unreadList.splice(index, 1)
-      curData.lastRead = Date.now()
-      await saveData()
-    }
+  if (index !== -1) {
+    curData.unreadList.splice(index, 1)
+    curData.readList.push(uuid)
+    await saveData()
   }
 }
 
