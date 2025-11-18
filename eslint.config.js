@@ -141,5 +141,11 @@ export default [
       'vue/no-reserved-component-names': 'off',
       'vue/no-v-html': 'off'
     }
+  },
+  {
+    files: ['src/i18n/*.js'],
+    rules: {
+      'sort-keys': ['warn', 'asc', { caseSensitive: false, natural: true }]
+    }
   }
 ]

@@ -9,6 +9,7 @@
     <FormGroup :label="t('redmine_api_key')">
       <FormInput
         v-model="options.key"
+        type="password"
       />
     </FormGroup>
     <FormGroup>

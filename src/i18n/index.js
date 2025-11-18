@@ -1,3 +1,4 @@
+/* eslint-disable sort-keys */
 import en from './en.js'
 import ja from './ja.js'
 import ru from './ru.js'

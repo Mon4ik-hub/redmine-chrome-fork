@@ -1,3 +1,5 @@
+import i18n from '@/i18n'
+
 export default {
   setBadgeText (text) {
     chrome.action.setBadgeText({ text })
@@ -88,6 +90,18 @@ export default {
       console.error('Textile conversion error:', error)
       return text
     }
+  },
+
+  getBrowserLanguage () {
+    let browserLanguage = chrome?.i18n?.getUILanguage?.() || navigator.language || navigator.userLanguage
+
+    browserLanguage = browserLanguage.replace('-', '_')
+
+    if (Object.keys(i18n).includes(browserLanguage)) {
+      return browserLanguage
+    }
+
+    return 'zh_CN'
   },
 
   async copyIssueId (id) {

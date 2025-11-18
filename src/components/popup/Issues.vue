@@ -12,10 +12,11 @@
       :unread-count="unreadCount"
       @order-change="setOrder"
       @mark-all-read="markAllRead"
+      @filter-change="handleFilterChange"
     />
 
     <List
-      :sorted-issues="sortedIssues"
+      :sorted-issues="filteredIssues"
       :current-data="currentData"
       @select-issue="showIssue"
       @mark-issue-read="markIssueRead"
@@ -36,6 +37,7 @@ const roles = ref([])
 const roleIndex = ref(0)
 const order = ref('default')
 const data = ref({})
+const filterQuery = ref('')
 
 const currentRole = computed(() => roles.value[roleIndex.value])
 const currentData = computed(() => data.value[currentRole.value] ||
@@ -90,6 +92,18 @@ const sortedIssues = computed(() => {
   return issues
 })
 const unreadCount = computed(() => currentData.value?.unreadList?.length || 0)
+
+const handleFilterChange = query => {
+  filterQuery.value = query.toLowerCase()
+}
+
+const filteredIssues = computed(() => {
+  if (!filterQuery.value) {
+    return sortedIssues.value
+  }
+
+  return sortedIssues.value.filter(issue => issue.subject.toLowerCase().includes(filterQuery.value))
+})
 
 const saveSettings = async () => {
   const settings = {
@@ -175,6 +189,7 @@ const fixBadgeError = async () => {
   ) {
     // Clear error badge and update with actual count
     const totalUnread = calculateTotalUnread()
+
     Utils.setBadgeText(totalUnread > 0 ? `${totalUnread}` : '')
   }
 }

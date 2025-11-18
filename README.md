@@ -15,6 +15,21 @@ Redmine notification tools for chrome extension.[![Build Status](https://travis-
 
 ## Changelog
 
+### 3.1.0 (2025-11-18)
+
+#### Added
+
+* Added issue filter functionality with search by subject
+* Added filter UI with search input in popup header
+
+#### Improvements
+
+* Improved password field for API key in options page
+* Optimized i18n key sorting in all language files
+* Refactored filter logic in Sort component
+* Updated CSS styles for better UI consistency
+* Improved language detection using browser's UI language
+
 ### 3.0.2 (2025-11-16)
 
 #### Improvements

@@ -25,7 +25,7 @@ dayjs.extend(relativeTime)
 export const createAppWithI18n = async (AppComponent, mountSelector = '#app') => {
   const storedLocale = await Utils.getStorage('locale')
 
-  window.locale = storedLocale || 'zh_CN'
+  window.locale = storedLocale || Utils.getBrowserLanguage()
 
   dayjs.locale({
     zh_CN: 'zh-cn',

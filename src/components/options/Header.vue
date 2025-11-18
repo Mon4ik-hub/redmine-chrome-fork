@@ -23,7 +23,7 @@
         <FormGroup>
           <template #label>
             <div class="tr">
-              <i class="fa fa-flag" />
+              <i class="fa fa-globe" />
               {{ t('language') }}
             </div>
           </template>
@@ -48,7 +48,7 @@ import pkg from '@/../package.json'
 
 const version = pkg.version
 const { t } = useI18n()
-const language = ref('zh_CN')
+const language = ref(Utils.getBrowserLanguage())
 
 const locales = Object.keys(languages).map(code => ({
   value: code,

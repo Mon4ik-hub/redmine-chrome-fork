@@ -9,7 +9,11 @@
       color: color
     }"
   >
-    <i v-if="icon" class="toast-icon" :class="icon" />
+    <i
+      v-if="icon"
+      class="toast-icon"
+      :class="icon"
+    />
     {{ message }}
   </div>
 </template>
@@ -44,11 +48,11 @@ const emit = defineEmits(['hide'])
 const internalVisible = ref(false)
 const internalPosition = ref({ top: 0, left: 0 })
 
-const show = (event) => {
+const show = event => {
   const rect = event.target.getBoundingClientRect()
   const position = {
     top: rect.top + window.scrollY - 30, // 显示在按钮上方
-    left: rect.left + (rect.width / 2) + window.scrollX - 30 // 水平居中
+    left: rect.left + rect.width / 2 + window.scrollX - 30 // 水平居中
   }
 
   internalPosition.value = position

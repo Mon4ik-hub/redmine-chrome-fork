@@ -96,7 +96,7 @@ const handleCopyIssueId = async (issueId, event) => {
   toast.value.show(event)
 }
 
-const markIssueRead = (issue) => {
+const markIssueRead = issue => {
   if (isUnread.value(issue)) {
     emit('mark-issue-read', Utils.getUUID(issue))
   }
