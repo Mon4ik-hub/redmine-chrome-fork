@@ -1,6 +1,6 @@
 <template>
   <div class="pr">
-    <div class="d-flex align-items-center mb-3">
+    <div class="d-flex align-items-center">
       <Button
         v-if="unreadCount > 0"
         type="primary"

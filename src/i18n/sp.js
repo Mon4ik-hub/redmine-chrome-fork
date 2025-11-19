@@ -11,6 +11,7 @@ export default {
   english: 'Inglés',
   feedback: 'Comentarios',
   filter_issues: 'Filter issues',
+  get_api_key_help: 'Obtener clave API de Redmine',
   go_backup: 'Volver',
   hours_1: '1 hora',
   issue_number: 'Número de incidentes: ',

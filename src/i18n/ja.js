@@ -11,6 +11,7 @@ export default {
   english: '英語',
   feedback: 'フィードバック',
   filter_issues: 'Filter issues',
+  get_api_key_help: 'Redmine APIキーを取得',
   go_backup: '戻る',
   hours_1: '1時間',
   issue_number: 'チケット件数：',

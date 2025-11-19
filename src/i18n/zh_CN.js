@@ -11,6 +11,7 @@ export default {
   english: '英文',
   feedback: '问题反馈',
   filter_issues: '过滤问题',
+  get_api_key_help: '获取 Redmine API 密钥',
   go_backup: '返回',
   hours_1: '1小时',
   issue_number: '问题条数：',

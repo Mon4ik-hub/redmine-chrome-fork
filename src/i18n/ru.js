@@ -11,6 +11,7 @@ export default {
   english: 'English',
   feedback: 'Обратная связь',
   filter_issues: 'Filter issues',
+  get_api_key_help: 'Получить API-ключ Redmine',
   go_backup: 'Вернуться',
   hours_1: '1 час',
   issue_number: 'Количество задач: ',

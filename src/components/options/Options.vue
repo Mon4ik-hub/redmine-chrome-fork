@@ -6,7 +6,12 @@
         placeholder="https://demo.redmine.org"
       />
     </FormGroup>
-    <FormGroup :label="t('redmine_api_key')">
+    <FormGroup
+      :label="t('redmine_api_key')"
+      :help="options.url ? t('get_api_key_help') : ''"
+      help-is-link
+      @help-click="openMyAccount"
+    >
       <FormInput
         v-model="options.key"
         type="password"
@@ -234,6 +239,10 @@ const save = async () => {
     console.error('Failed to send message to background:', error)
     window.alert(t('save_error'))
   }
+}
+
+const openMyAccount = () => {
+  window.open(`${options.value.url}/my/account`, '_blank')
 }
 
 onMounted(async () => {

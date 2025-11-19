@@ -15,6 +15,13 @@ Redmine notification tools for chrome extension.[![Build Status](https://travis-
 
 ## Changelog
 
+### 3.1.1 (2025-11-19)
+
+#### Improvements
+
+* Added API key help text with link to Redmine account page in options
+* Updated issues list view for better UI consistency
+
 ### 3.1.0 (2025-11-18)
 
 #### Added

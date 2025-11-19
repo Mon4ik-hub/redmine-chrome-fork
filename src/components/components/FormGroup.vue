@@ -19,15 +19,13 @@
           @click.prevent="$emit('help-click')"
         >
           <i
-            :data-hint="help"
-            data-hint-html="true"
+            :title="help"
             class="far fa-circle-question"
           />
         </a>
         <i
           v-else
-          :data-hint="help"
-          data-hint-html="true"
+          :title="help"
           class="far fa-circle-question"
         />
       </template>
