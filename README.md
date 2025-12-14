@@ -15,7 +15,7 @@ Redmine notification tools for chrome extension.[![Build Status](https://travis-
 
 ## Changelog
 
-### 3.1.2 (2025-12-14)
+### 3.1.3 (2025-12-14)
 
 #### Fixes
 

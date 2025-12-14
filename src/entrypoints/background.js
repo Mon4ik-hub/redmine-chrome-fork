@@ -50,28 +50,29 @@ class Background {
       if (!this.options.issues || !Array.isArray(this.options.issues)) {
         console.error('options.issues is not properly defined:', this.options.issues)
         this.error = true
-        return
+      } else {
+        for (const role of this.options.issues) {
+          console.log(`Processing role: ${role}`)
+          await this.getList(role)
+        }
+
+        await Utils.setStorage('data', this.data)
+        console.log('initRequest completed successfully')
       }
-
-      for (const role of this.options.issues) {
-        console.log(`Processing role: ${role}`)
-        await this.getList(role)
-      }
-
-      await Utils.setStorage('data', this.data)
-
+    } catch (error) {
+      console.error('Error in initRequest:', error)
+      this.error = true
+    } finally {
+      // Always update badge text and create alarm, even if there was an error
       Utils.setBadgeText(this.error ? 'x' : this.unreadCount > 0 ? `${this.unreadCount}` : '')
       this.unreadCount = 0
 
-      // Clear and create new alarm
+      // Always clear and create new alarm to ensure periodic checks continue
       await chrome.alarms.clearAll()
       chrome.alarms.create('refreshAlarm', {
         delayInMinutes: this.options.interval || 5 // Default to 5 minutes if not set
       })
-      console.log('initRequest completed successfully')
-    } catch (error) {
-      console.error('Error in initRequest:', error)
-      this.error = true
+      console.log('Alarm set for next refresh in', this.options.interval || 5, 'minutes')
     }
   }
 
