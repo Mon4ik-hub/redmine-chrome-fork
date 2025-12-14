@@ -74,7 +74,6 @@ export default [
       'no-alert': 'off',
       'no-async-promise-executor': 'off',
       'no-case-declarations': 'off',
-      'no-console': ['warn', { allow: ['warn', 'error', 'trace'] }],
       'no-duplicate-imports': 'error',
       'no-else-return': ['error', { allowElseIf: false }],
       'no-extra-parens': 'error',

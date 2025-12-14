@@ -194,12 +194,12 @@ export default defineBackground(() => {
   let background = new Background()
 
   // Add error handling for unhandled promise rejections
-  self.addEventListener('unhandledrejection', (event) => {
+  self.addEventListener('unhandledrejection', event => {
     console.error('Background service worker unhandled rejection:', event.reason)
   })
 
   // Add error handling for general errors
-  self.addEventListener('error', (event) => {
+  self.addEventListener('error', event => {
     console.error('Background service worker error:', event.error)
   })
 
