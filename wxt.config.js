@@ -4,8 +4,8 @@ import { defineConfig } from 'wxt'
 export default defineConfig({
   manifest: () => ({
     name: 'Redmine Notification',
-    permissions: ['alarms', 'notifications', 'storage'],
-    host_permissions: ['http://*/*', 'https://*/*'],
+    permissions: ['alarms', 'notifications', 'storage', 'tabs'],
+    host_permissions: ['http://*/*', 'https://*/*', 'http://localhost/*'],
     action: {
       default_icon: {
         16: 'icon-128.png',

@@ -9,16 +9,22 @@ class Background {
   }
 
   async init () {
-    if (!await this.initOptions()) {
-      return
-    }
-    // Listen for alarm events
-    chrome.alarms.onAlarm.addListener(alarm => {
-      if (alarm.name === 'refreshAlarm') {
-        this.initRequest()
+    try {
+      if (!await this.initOptions()) {
+        return
       }
-    })
-    this.initRequest()
+      // Listen for alarm events
+      chrome.alarms.onAlarm.addListener(alarm => {
+        if (alarm.name === 'refreshAlarm') {
+          this.initRequest().catch(error => {
+            console.error('Error in initRequest from alarm:', error)
+          })
+        }
+      })
+      await this.initRequest()
+    } catch (error) {
+      console.error('Error initializing background:', error)
+    }
   }
 
   async initOptions () {
@@ -36,46 +42,62 @@ class Background {
   }
 
   async initRequest () {
-    this.error = false
+    try {
+      this.error = false
+      console.log('Starting initRequest...')
 
-    for (const role of this.options.issues) {
-      await this.getList(role)
-    }
+      // Ensure options.issues exists and is an array
+      if (!this.options.issues || !Array.isArray(this.options.issues)) {
+        console.error('options.issues is not properly defined:', this.options.issues)
+        this.error = true
+        return
+      }
 
-    Utils.setStorage('data', this.data)
+      for (const role of this.options.issues) {
+        console.log(`Processing role: ${role}`)
+        await this.getList(role)
+      }
 
-    Utils.setBadgeText(this.error ? 'x' : this.unreadCount > 0 ? `${this.unreadCount}` : '')
-    this.unreadCount = 0
+      await Utils.setStorage('data', this.data)
 
-    chrome.alarms.clearAll().then(() => {
+      Utils.setBadgeText(this.error ? 'x' : this.unreadCount > 0 ? `${this.unreadCount}` : '')
+      this.unreadCount = 0
+
+      // Clear and create new alarm
+      await chrome.alarms.clearAll()
       chrome.alarms.create('refreshAlarm', {
-        delayInMinutes: this.options.interval
+        delayInMinutes: this.options.interval || 5 // Default to 5 minutes if not set
       })
-    })
+      console.log('initRequest completed successfully')
+    } catch (error) {
+      console.error('Error in initRequest:', error)
+      this.error = true
+    }
   }
 
   setQuery (query, name, values) {
     query[name] = values.join('|')
   }
 
-  getList (role) {
-    const query = {
-      set_filter: 1,
-      sort: 'updated_on:desc',
-      limit: this.options.number,
-      key: this.options.key,
-      [role]: 'me'
-    }
+  async getList (role) {
+    try {
+      const query = {
+        set_filter: 1,
+        sort: 'updated_on:desc',
+        limit: this.options.number,
+        key: this.options.key,
+        [role]: 'me'
+      }
 
-    // this.setQuery(query, 'project_id', this.options.projects)
-    this.setQuery(query, 'status_id', this.options.status)
-    this.setQuery(query, 'tracker_id', this.options.trackers)
+      // this.setQuery(query, 'project_id', this.options.projects)
+      this.setQuery(query, 'status_id', this.options.status)
+      this.setQuery(query, 'tracker_id', this.options.trackers)
 
-    if (!this.data[role]) {
-      this.data[role] = {}
-    }
+      if (!this.data[role]) {
+        this.data[role] = {}
+      }
 
-    return Utils.getAPI(this.options, 'issues', query).then(res => {
+      const res = await Utils.getAPI(this.options, 'issues', query)
       const lastRead = new Date(0)
       const lastNotified = new Date(0)
       const unreadList = []
@@ -122,10 +144,11 @@ class Background {
       this.data[role].lastNotified = lastNotified.getTime()
       this.data[role].unreadList = unreadList
       this.unreadCount += count
-    }).catch(() => {
+    } catch (error) {
+      console.error(`Error fetching list for role ${role}:`, error)
       this.data[role].error = true
       this.error = true
-    })
+    }
   }
 
   showNotification (issue) {
@@ -169,10 +192,25 @@ class Background {
 export default defineBackground(() => {
   let background = new Background()
 
-  onMessage('OPTIONS_SAVED', () => {
-    background?.destroy()
-    background = new Background()
-    return { success: true }
+  // Add error handling for unhandled promise rejections
+  self.addEventListener('unhandledrejection', (event) => {
+    console.error('Background service worker unhandled rejection:', event.reason)
+  })
+
+  // Add error handling for general errors
+  self.addEventListener('error', (event) => {
+    console.error('Background service worker error:', event.error)
+  })
+
+  onMessage('OPTIONS_SAVED', async () => {
+    try {
+      background?.destroy()
+      background = new Background()
+      return { success: true }
+    } catch (error) {
+      console.error('Error handling OPTIONS_SAVED:', error)
+      return { success: false, error: error.message }
+    }
   })
 
   return () => {
