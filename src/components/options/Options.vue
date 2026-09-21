@@ -59,6 +59,13 @@
     </FormGroup>
 
     <FormGroup>
+      <FormCheckbox
+        v-model="options.group_notifications"
+        :label="t('group_notifications')"
+      />
+    </FormGroup>
+
+    <FormGroup>
       <Button
         class="mr10"
         icon="fa fa-arrow-left"
@@ -97,6 +104,8 @@ const options = ref({
   number: 50,
   trackers: [],
   interval: 10,
+  tooltip_limit: 200,
+  group_notifications: false,
   notify: true,
   notify_status: []
 })
@@ -145,6 +154,28 @@ const list = ref({
       text: t('hours_1')
     }
   ],
+  tooltip_limit: [
+    {
+      value: 100,
+      text: '100'
+    },
+    {
+      value: 200,
+      text: '200'
+    },
+    {
+      value: 500,
+      text: '500'
+    },
+    {
+      value: 1000,
+      text: '1000'
+    },
+    {
+      value: 0,
+      text: t('tooltip_full')
+    }
+  ],
   notify_status: []
 })
 const selects = [
@@ -172,6 +203,11 @@ const selects = [
   {
     label: t('update_interval'),
     name: 'interval',
+    single: true
+  },
+  {
+    label: t('tooltip_limit'),
+    name: 'tooltip_limit',
     single: true
   },
   {
@@ -208,6 +244,9 @@ const getData = async savedOptions => {
     options.value.trackers = savedOptions.trackers || list.value.trackers.map(it => it.value)
 
     options.value.interval = savedOptions.interval || options.value.interval
+    // 0 means "no truncation", so the fallback must not treat it as empty
+    options.value.tooltip_limit = savedOptions.tooltip_limit ?? options.value.tooltip_limit
+    options.value.group_notifications = savedOptions.group_notifications ?? options.value.group_notifications
     options.value.notify = savedOptions.notify || options.value.notify
 
     list.value.notify_status = list.value.status
@@ -227,7 +266,13 @@ const onNext = () => {
   })
 }
 const save = async () => {
-  await Utils.setStorage('options', options.value)
+  // Keep the full status/tracker name lists so the popup can translate
+  // ids into names in the last-change tooltip
+  await Utils.setStorage('options', {
+    ...options.value,
+    statusList: list.value.status,
+    trackerList: list.value.trackers
+  })
   // Notify background service worker to refresh
   try {
     const response = await sendMessage('OPTIONS_SAVED')

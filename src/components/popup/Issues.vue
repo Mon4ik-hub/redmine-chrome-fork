@@ -150,17 +150,26 @@ const markAllRead = async () => {
   curData.unreadList = []
   curData.readList = []
   curData.lastRead = Date.now()
+  // Everything up to this moment is seen, per-issue markers are not needed
+  curData.readAt = {}
   await saveSettings()
   await saveData()
 }
 
-const markIssueRead = async uuid => {
+const markIssueRead = async issue => {
   const curData = data.value[currentRole.value]
+  const uuid = Utils.getUUID(issue)
   const index = curData.unreadList.indexOf(uuid)
 
   if (index !== -1) {
     curData.unreadList.splice(index, 1)
     curData.readList.push(uuid)
+    // Remember when this issue was last seen so the grouped view can
+    // count only the changes added after that
+    if (!curData.readAt) {
+      curData.readAt = {}
+    }
+    curData.readAt[issue.id] = Date.now()
     await saveData()
   }
 }

@@ -56,6 +56,7 @@
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Utils from '@/utils'
+import { getIssueDetail } from '@/utils/changes'
 
 const { t } = useI18n()
 
@@ -78,34 +79,25 @@ const history = ref('')
 
 const loadIssueDetail = async issue => {
   try {
-    const baseUrl = props.options.url.endsWith('/') ?
-      props.options.url.slice(0, -1) :
-      props.options.url
+    const result = await getIssueDetail(props.options, issue)
 
-    const urlWithParams = `${baseUrl}/issues/${issue.id}.json?key=${props.options.key}`
-    const response = await fetch(urlWithParams)
+    fullIssueData.value = result
 
-    if (response.ok) {
-      const result = await response.json()
+    if (result.description) {
+      convertedDescription.value = result.description
+    }
 
-      fullIssueData.value = result.issue
-
-      if (result.issue.description) {
-        convertedDescription.value = result.issue.description
-      }
-
-      // 处理历史记录
-      if (result.issue.journals) {
-        history.value = result.issue.journals.map(journal =>
-          `<div class="journal">
-            <div class="journal-header">
-              <strong>${journal.user?.name || 'Unknown'}</strong>
-              <small>${new Date(journal.created_on).toLocaleString()}</small>
-            </div>
-            <div class="journal-notes">${journal.notes || ''}</div>
-          </div>`
-        ).join('')
-      }
+    // 处理历史记录
+    if (result.journals) {
+      history.value = result.journals.map(journal =>
+        `<div class="journal">
+          <div class="journal-header">
+            <strong>${journal.user?.name || 'Unknown'}</strong>
+            <small>${new Date(journal.created_on).toLocaleString()}</small>
+          </div>
+          <div class="journal-notes">${journal.notes || ''}</div>
+        </div>`
+      ).join('')
     }
   } catch (error) {
     console.error('Failed to load issue detail:', error)

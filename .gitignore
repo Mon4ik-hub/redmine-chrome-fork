@@ -6,3 +6,5 @@ node_modules
 output
 CLAUDE.md
 yarn.lock
+.serena
+package-lock.json
