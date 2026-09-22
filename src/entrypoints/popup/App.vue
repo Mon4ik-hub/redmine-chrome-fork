@@ -63,5 +63,10 @@ onMounted(async () => {
 <style scoped>
 .popup-container {
   width: 600px;
+  padding: 8px;
+  box-sizing: border-box;
+  background-color: #f3f3f3;
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 </style>

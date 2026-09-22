@@ -7,104 +7,107 @@
     <div
       v-for="(issue, index) in sortedIssues"
       :key="issue.id + issue.updated_on"
-      class="list-group-item"
-      :class="{ 'fw-bold': isUnread(issue) }"
+      class="fluent-task-container"
+      :class="{
+        expanded: isGrouped && isUnread(issue) && expanded[issue.id],
+        'is-unread': isUnread(issue)
+      }"
       @click="markIssueRead(issue)"
       @mouseenter="onRowEnter(issue, $event)"
       @mouseleave="onRowLeave"
     >
-      <div class="d-flex justify-content-between align-items-center">
-        <div>
-          <span :class="`badge bg-${issue.priority.name.toLowerCase()}`">
-            {{ issue.priority.name }}
-          </span>
-          <StatusBadge
-            :status="issue.status"
-            :options="options"
-            class="ms-2"
-          />
-        </div>
-        <div class="d-flex align-items-center">
-          <span
-            v-if="isGrouped && isUnread(issue) && notifState[issue.id] && notifState[issue.id].status !== 'error'"
-            class="notif-count"
-            :title="t('expand_notifications')"
-          >
-            <template v-if="notifState[issue.id].status === 'ready'">
-              {{ notifState[issue.id].items.length }}
-            </template>
-            <i
-              v-else
-              class="fas fa-circle-notch fa-spin"
+      <div class="fluent-task-row">
+        <i
+          class="fluent-chevron fas fa-chevron-right"
+          :class="{ invisible: !(isGrouped && isUnread(issue)) }"
+          :title="isGrouped && isUnread(issue) ? t('expand_notifications') : undefined"
+          @click.stop="toggleExpand(issue)"
+        />
+        <div
+          class="fluent-left-accent"
+          :style="{ backgroundColor: trackerColor(issue.tracker.name) }"
+          :title="issue.tracker.name"
+        />
+        <div class="fluent-content">
+          <div class="fluent-title-block">
+            <a
+              href="#"
+              class="fluent-id"
+              @click.prevent.stop="selectIssue(issue, index)"
+            >#{{ issue.id }}</a>
+            <span class="fluent-subject">{{ issue.subject }}</span>
+          </div>
+          <div class="fluent-meta-block">
+            <StatusBadge
+              :status="issue.status"
+              :options="options"
             />
-          </span>
-          <div class="text-end small">
-            {{ issue.project.name }}
-            ({{ formatTime(issue.updated_on) }})
+            <span :class="`fluent-priority prio-${issue.priority.name.toLowerCase()}`">
+              {{ issue.priority.name }}
+            </span>
+            <span class="fluent-time">{{ issue.project.name }} · {{ formatTime(issue.updated_on) }}</span>
           </div>
         </div>
-      </div>
-      <div class="mt-2 d-flex align-items-center gap-2">
-        <button
-          v-if="isGrouped && isUnread(issue)"
-          class="btn btn-sm btn-link p-0 expand-btn"
+        <div class="fluent-actions">
+          <button
+            class="fluent-action-btn"
+            :title="t('copy_issue_id')"
+            @click.stop="handleCopyIssueId(issue.id, $event)"
+          >
+            <i class="fas fa-copy" />
+          </button>
+          <button
+            class="fluent-action-btn"
+            title="Open in new tab"
+            @click.stop="openIssueInNewTab(issue)"
+          >
+            <i class="fa-solid fa-arrow-up-right-from-square" />
+          </button>
+        </div>
+        <div
+          v-if="isGrouped && isUnread(issue) && notifState[issue.id] && notifState[issue.id].status !== 'error'"
+          class="unread-count-badge"
           :title="t('expand_notifications')"
           @click.stop="toggleExpand(issue)"
         >
-          <i :class="expanded[issue.id] ? 'fas fa-chevron-down' : 'fas fa-chevron-right'" />
-        </button>
-        <button
-          class="btn btn-sm btn-link p-0 copy-btn"
-          :title="t('copy_issue_id')"
-          @click.stop="handleCopyIssueId(issue.id, $event)"
-        >
-          <i class="fas fa-copy" />
-        </button>
-        <button
-          class="btn btn-sm btn-link p-0 open-btn"
-          title="Open in new tab"
-          @click.stop="openIssueInNewTab(issue)"
-        >
-          <i class="fa-solid fa-arrow-up-right-from-square" />
-        </button>
-        <a
-          href="#"
-          target="_blank"
-          class="issue-link text-decoration-none"
-          @click.prevent.stop="selectIssue(issue, index)"
-        >
-          <span
-            v-if="isUnread(issue)"
-            class="unread-indicator"
+          <template v-if="notifState[issue.id].status === 'ready'">
+            {{ notifState[issue.id].items.length }}
+          </template>
+          <i
+            v-else
+            class="fas fa-circle-notch fa-spin"
           />
-          {{ issue.tracker.name }} #{{ issue.id }}: {{ issue.subject }}
-        </a>
+        </div>
       </div>
 
       <div
-        v-if="isGrouped && isUnread(issue) && expanded[issue.id]"
-        class="notification-group"
+        v-if="isGrouped && isUnread(issue)"
+        class="fluent-details-panel"
       >
-        <div
-          v-if="notifState[issue.id]?.status === 'loading'"
-          class="notification-meta"
-        >
-          <i class="fas fa-circle-notch fa-spin" /> {{ t('loading_change') }}
-        </div>
-        <div
-          v-for="(item, notifIndex) in notifState[issue.id]?.items"
-          :key="notifIndex"
-          class="notification-item"
-        >
-          <div class="notification-meta">
-            <i class="fas fa-user" /> {{ item.user }} · {{ formatTime(item.time) }}
-          </div>
-          <div
-            v-for="(line, lineIndex) in item.lines"
-            :key="lineIndex"
-            class="notification-line"
-          >
-            {{ line }}
+        <div class="fluent-details-inner">
+          <div class="fluent-details-content">
+            <div
+              v-if="notifState[issue.id]?.status === 'loading'"
+              class="notification-meta"
+            >
+              <i class="fas fa-circle-notch fa-spin" /> {{ t('loading_change') }}
+            </div>
+            <div
+              v-for="(item, notifIndex) in notifState[issue.id]?.items"
+              :key="notifIndex"
+              class="notification-item"
+            >
+              <div class="notification-meta">
+                <i class="fas fa-user" /> {{ item.user }} · {{ formatTime(item.time) }}
+              </div>
+              <div
+                v-for="(line, lineIndex) in item.lines"
+                :key="lineIndex"
+                class="notification-line"
+              >
+                {{ line }}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -141,12 +144,12 @@
 
     <div
       v-if="currentData?.error"
-      class="text-center p-4"
+      class="error-block"
     >
       <a
         href="options.html"
         target="_blank"
-        class="btn btn-danger"
+        class="fluent-danger-btn"
       >
         {{ t('settings_error') }}
       </a>
@@ -158,6 +161,7 @@
 import { useI18n } from 'vue-i18n'
 import Utils from '@/utils'
 import StatusBadge from '@/components/popup/StatusBadge.vue'
+import { trackerColor } from '@/utils/statusColors'
 import { describeLastChange, getIssueDetail, getIssueNotifications } from '@/utils/changes'
 import dayjs from 'dayjs'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -392,87 +396,249 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss" scoped>
-.list-group-item {
-  padding: 8px 0;
-  border-bottom: 1px solid var(--bs-border-color);
+/* Fluent task rows: a colored tracker accent on the left, the id in blue,
+   meta as soft badges, actions revealed on hover; the row lives in a
+   container together with its expandable details panel */
+.fluent-task-container {
+  border-bottom: 1px solid #f3f2f1;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-
-  &:hover {
-    background-color: #f8f9fa;
-  }
 
   &:last-child {
     border-bottom: none;
   }
 }
 
-.issue-link {
+.fluent-task-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px 16px;
+  transition: background-color 0.1s ease;
+}
+
+.fluent-task-container:hover .fluent-task-row {
+  background-color: #f3f2f1;
+}
+
+/* Chevron and the tracker accent share the same 16px slot height and
+   top offset, so both sit on one line at a fixed distance from the id;
+   the slot is always reserved (visibility) so read rows keep the same
+   left edge as expandable ones */
+.fluent-chevron {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 3px 8px 0 0;
+  font-size: 14px;
+  color: #605e5c;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.1, 0.9, 0.2, 1);
 
-  .unread-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: var(--bs-primary);
-    margin-right: 8px;
-    flex-shrink: 0;
-    margin-top: 1px; /* 微调指示器垂直位置 */
+  &.invisible {
+    visibility: hidden;
+    cursor: default;
   }
 }
 
-.copy-btn,
-.open-btn,
-.expand-btn {
-  width: 18px;
-  height: 18px;
-  font-size: 12px;
-  color: #6c757d; /* 灰色文本 */
+.fluent-task-container.expanded .fluent-chevron {
+  transform: rotate(90deg);
+  color: #0078d4;
+}
+
+.fluent-left-accent {
+  width: 3px;
+  height: 16px;
+  margin: 3px 12px 0 0;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.fluent-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.fluent-title-block {
+  margin-bottom: 6px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.fluent-id {
+  margin-right: 6px;
+  font-weight: 600;
+  color: #0078d4;
+  text-decoration: none;
 
   &:hover {
-    color: #495057; /* 鼠标悬停加深颜色 */
-  }
-
-  i {
-    font-size: 12px;
+    text-decoration: underline;
   }
 }
 
-.notif-count {
+.fluent-subject {
+  color: #605e5c;
+}
+
+.fluent-task-container.is-unread .fluent-subject {
+  font-weight: 600;
+  color: #201f1e;
+}
+
+.fluent-meta-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@mixin soft-priority($color) {
+  color: color-mix(in srgb, $color 58%, #201f1e);
+  background-color: color-mix(in srgb, $color 14%, #ffffff);
+}
+
+.fluent-priority {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  border-radius: 4px;
+  color: #605e5c;
+  background-color: #f3f2f1;
+
+  &.prio-immediate,
+  &.prio-немедленный {
+    @include soft-priority(#8a2be2);
+  }
+
+  &.prio-urgent,
+  &.prio-срочный {
+    @include soft-priority(#d9534f);
+  }
+
+  &.prio-high,
+  &.prio-высокий {
+    @include soft-priority(#d1761f);
+  }
+
+  &.prio-normal,
+  &.prio-нормальный {
+    @include soft-priority(#f0ad4e);
+  }
+
+  &.prio-low,
+  &.prio-низкий {
+    @include soft-priority(#6264a7);
+  }
+}
+
+.fluent-time {
+  font-size: 12px;
+  color: #797775;
+}
+
+.fluent-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: 8px;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.fluent-task-container:hover .fluent-actions,
+.fluent-actions:focus-within {
+  opacity: 1;
+}
+
+.fluent-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 12px;
+  color: #605e5c;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.1s ease, color 0.1s ease;
+
+  &:hover {
+    color: #201f1e;
+    background-color: #edebe9;
+  }
+}
+
+.unread-count-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 20px;
   height: 20px;
-  margin-right: 8px;
+  margin-left: 4px;
   padding: 0 6px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #fff;
-  background-color: var(--bs-primary);
+  background-color: #0078d4;
   border-radius: 10px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+
+  &:hover {
+    background-color: #106ebe;
+  }
 }
 
-.notification-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 6px 4px 2px 26px;
-  border-top: 1px dashed var(--bs-border-color);
+/* Expandable details panel: animated with a 0fr → 1fr grid row so it
+   slides open without measuring heights in JS */
+.fluent-details-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  background-color: #fafafb;
+  transition: grid-template-rows 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.fluent-task-container.expanded .fluent-details-panel {
+  grid-template-rows: 1fr;
+  border-top: 1px solid #f3f2f1;
+}
+
+.fluent-details-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.fluent-details-content {
+  padding: 12px 16px 16px 55px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #323130;
 }
 
 .notification-item {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  margin-bottom: 8px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
 }
 
 .notification-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
-  color: #6c757d;
+  color: #605e5c;
 }
 
 .notification-line {
@@ -480,52 +646,53 @@ onBeforeUnmount(() => {
   word-break: break-word;
 }
 
-.gap-2 {
-  gap: 6px !important;
-}
-
-.badge {
-  &.bg-immediate {
-    background: BlueViolet;
-  }
-
-  &.bg-urgent {
-    background: #d9534f;
-  }
-
-  &.bg-high {
-    background: #d1761f;
-  }
-
-  &.bg-normal {
-    background-color: #f0ad4e;
-  }
-
-  &.bg-low {
-    background: #aed2e8;
-  }
-}
-
 .change-tooltip {
   position: fixed;
   z-index: 1000;
   max-height: min(420px, calc(100vh - 24px));
   overflow-y: auto;
-  padding: 8px 10px;
+  padding: 10px 12px;
   background: #fff;
-  border: 1px solid var(--bs-border-color);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.14);
 }
 
 .change-tooltip-header {
-  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
   font-size: 12px;
-  color: #6c757d;
+  color: #605e5c;
 }
 
 .change-tooltip-line {
   font-size: 12px;
+  color: #323130;
   word-break: break-word;
+}
+
+.error-block {
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.fluent-danger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  font-size: 13px;
+  color: #fff;
+  background-color: #c42b1c;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: background-color 0.1s ease;
+
+  &:hover {
+    background-color: #d13438;
+    color: #fff;
+  }
 }
 </style>

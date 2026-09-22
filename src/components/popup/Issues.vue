@@ -1,5 +1,5 @@
 <template>
-  <div class="p15">
+  <div class="fluent-popup">
     <Header
       :roles="roles"
       :role-index="roleIndex"
@@ -223,3 +223,15 @@ onMounted(async () => {
   })
 })
 </script>
+
+<style lang="scss" scoped>
+/* Fluent flyout card: white surface with the characteristic 8px corner
+   radius, sitting on the neutral gray background of the popup */
+.fluent-popup {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+}
+</style>

@@ -66,6 +66,30 @@ export const statusColor = (name, isClosed = false) => {
   return CUSTOM_STATUS_PALETTE[hashString(key) % CUSTOM_STATUS_PALETTE.length]
 }
 
+// Accent colors of the left tracker marker on each list row. Well-known
+// trackers get a fixed semantic color (Fluent red/green/blue as in the
+// design mockups), custom trackers get a stable hashed color, the same
+// way custom statuses do
+const KNOWN_TRACKER_COLORS = {
+  bug: '#d13438',
+  ошибка: '#d13438',
+  defect: '#d13438',
+  дефект: '#d13438',
+  feature: '#107c10',
+  улучшение: '#107c10',
+  support: '#0078d4',
+  поддержка: '#0078d4',
+  task: '#797775',
+  задача: '#797775'
+}
+
+export const trackerColor = name => {
+  const key = normalizeStatusName(name)
+
+  return KNOWN_TRACKER_COLORS[key] ||
+    CUSTOM_STATUS_PALETTE[hashString(key) % CUSTOM_STATUS_PALETTE.length]
+}
+
 let closedStatusIdsPromise = null
 
 // Ids of the statuses this Redmine marks as closed. issue_statuses.json

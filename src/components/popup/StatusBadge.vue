@@ -2,7 +2,7 @@
   <span
     v-if="status"
     class="badge status-badge"
-    :style="{ backgroundColor: color }"
+    :style="{ '--status-color': color }"
   >{{ status.name }}</span>
 </template>
 
@@ -42,7 +42,15 @@ const color = computed(() => props.options.statusColors?.[props.status?.id] ||
 </script>
 
 <style scoped>
+/* Fluent soft badge: a light tint of the status color as the background
+   and a darkened tone of it as the text */
 .status-badge {
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: color-mix(in srgb, var(--status-color) 62%, #201f1e);
+  background-color: color-mix(in srgb, var(--status-color) 13%, #ffffff);
 }
 </style>
