@@ -366,6 +366,10 @@ const positionTooltip = row => {
   tooltip.value.top = top
 }
 
+// The tooltip is inset from both edges of the row, like the floating
+// card in the Fluent mockup (left: 16px; right: 16px)
+const TOOLTIP_INSET = 16
+
 const showTooltip = async (issue, row) => {
   const rect = row.getBoundingClientRect()
 
@@ -373,8 +377,8 @@ const showTooltip = async (issue, row) => {
     visible: true,
     loading: true,
     top: rect.bottom + 6,
-    left: rect.left,
-    width: rect.width,
+    left: rect.left + TOOLTIP_INSET,
+    width: rect.width - TOOLTIP_INSET * 2,
     change: null
   }
   try {
