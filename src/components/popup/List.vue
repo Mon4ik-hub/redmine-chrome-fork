@@ -851,7 +851,7 @@ onBeforeUnmount(() => {
   background: #fff;
   border: 1px solid #f3f2f1;
   border-radius: 8px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.18), 0 2px 4px rgba(0, 0, 0, 0.08);
   animation: change-tooltip-in 0.15s ease;
 }
 
