@@ -18,7 +18,11 @@
           <span :class="`badge bg-${issue.priority.name.toLowerCase()}`">
             {{ issue.priority.name }}
           </span>
-          <span class="ms-2 small">{{ issue.status.name }}</span>
+          <StatusBadge
+            :status="issue.status"
+            :options="options"
+            class="ms-2"
+          />
         </div>
         <div class="d-flex align-items-center">
           <span
@@ -153,6 +157,7 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
 import Utils from '@/utils'
+import StatusBadge from '@/components/popup/StatusBadge.vue'
 import { describeLastChange, getIssueDetail, getIssueNotifications } from '@/utils/changes'
 import dayjs from 'dayjs'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'

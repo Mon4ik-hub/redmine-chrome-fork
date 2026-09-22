@@ -26,7 +26,14 @@
       <hr>
       <div class="row">
         <div class="col-6">
-          <div><strong>{{ t('status') }}:</strong> {{ selectedIssue.status?.name }}</div>
+          <div>
+            <strong>{{ t('status') }}:</strong>
+            <StatusBadge
+              :status="selectedIssue.status"
+              :options="options"
+              class="ms-1"
+            />
+          </div>
           <div><strong>{{ t('priority') }}:</strong> {{ selectedIssue.priority?.name }}</div>
         </div>
         <div class="col-6">
@@ -56,6 +63,7 @@
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Utils from '@/utils'
+import StatusBadge from '@/components/popup/StatusBadge.vue'
 import { getIssueDetail } from '@/utils/changes'
 
 const { t } = useI18n()

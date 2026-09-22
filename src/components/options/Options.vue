@@ -65,6 +65,47 @@
       />
     </FormGroup>
 
+    <FormGroup :label="t('status_colors')">
+      <div class="status-colors">
+        <div
+          v-for="statusItem in list.status"
+          :key="statusItem.value"
+          class="status-color-row"
+        >
+          <span
+            class="badge status-color-badge"
+            :style="{ backgroundColor: statusColorOf(statusItem) }"
+          >{{ statusItem.text }}</span>
+          <input
+            type="color"
+            :value="statusColorOf(statusItem)"
+            @input="setStatusColor(statusItem, $event.target.value)"
+          >
+          <span
+            class="status-color-source"
+            :class="{ 'is-custom': options.statusColors[statusItem.value] }"
+          >{{ options.statusColors[statusItem.value] ? t('status_colors_custom') : t('status_colors_auto') }}</span>
+          <button
+            v-if="options.statusColors[statusItem.value]"
+            type="button"
+            class="btn btn-link status-color-reset"
+            :title="t('status_colors_reset')"
+            @click="resetStatusColor(statusItem)"
+          >
+            <i class="fas fa-rotate-left" />
+          </button>
+        </div>
+      </div>
+      <button
+        v-if="hasCustomStatusColors"
+        type="button"
+        class="btn btn-sm btn-outline-secondary mt-2"
+        @click="options.statusColors = {}"
+      >
+        {{ t('status_colors_reset_all') }}
+      </button>
+    </FormGroup>
+
     <FormGroup>
       <Button
         class="mr10"
@@ -90,6 +131,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Utils from '@/utils'
 import { sendMessage } from '@/utils/messaging'
+import { statusColor } from '@/utils/statusColors'
 
 const { t } = useI18n()
 
@@ -106,6 +148,9 @@ const options = ref({
   interval: 10,
   tooltip_limit: 200,
   group_notifications: false,
+  // User-picked status badge colors, { [statusId]: '#rrggbb' }; statuses
+  // without an entry keep their automatic color
+  statusColors: {},
   notify: true,
   notify_status: []
 })
@@ -222,7 +267,25 @@ const saveEnable = computed(() => Object.values(options.value).every(it => {
   return true
 }))
 
-const toList = items => items.map(it => ({ value: it.id, text: it.name }))
+// isClosed is kept so the color editor can show the same automatic muted
+// color the popup uses for closed statuses
+const toList = items => items.map(it => ({ value: it.id, text: it.name, isClosed: it.is_closed }))
+
+// The color a status badge has right now: the user's pick if set, otherwise
+// the automatic one (known-name semantic color, muted gray when the status
+// is closed, stable palette color for custom names)
+const statusColorOf = statusItem => options.value.statusColors[statusItem.value] ||
+  statusColor(statusItem.text, statusItem.isClosed)
+
+const setStatusColor = (statusItem, color) => {
+  options.value.statusColors[statusItem.value] = color
+}
+
+const resetStatusColor = statusItem => {
+  delete options.value.statusColors[statusItem.value]
+}
+
+const hasCustomStatusColors = computed(() => Object.keys(options.value.statusColors).length > 0)
 const getData = async savedOptions => {
   loading.value = true
 
@@ -247,6 +310,7 @@ const getData = async savedOptions => {
     // 0 means "no truncation", so the fallback must not treat it as empty
     options.value.tooltip_limit = savedOptions.tooltip_limit ?? options.value.tooltip_limit
     options.value.group_notifications = savedOptions.group_notifications ?? options.value.group_notifications
+    options.value.statusColors = savedOptions.statusColors || {}
     options.value.notify = savedOptions.notify || options.value.notify
 
     list.value.notify_status = list.value.status
@@ -298,3 +362,57 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.status-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.status-color-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(50% - 8px);
+  min-width: 260px;
+}
+
+.status-color-badge {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.status-color-row input[type='color'] {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+
+.status-color-source {
+  flex: 0 0 auto;
+  min-width: 42px;
+  font-size: 11px;
+  color: #6c757d;
+}
+
+.status-color-source.is-custom {
+  color: #0d6efd;
+}
+
+.status-color-reset {
+  flex: 0 0 auto;
+  padding: 0;
+  font-size: 12px;
+}
+</style>
