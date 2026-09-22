@@ -112,7 +112,7 @@
                 :key="lineIndex"
                 class="notification-line"
               >
-                {{ line }}
+                {{ line.text }}
               </div>
             </div>
           </div>
@@ -137,14 +137,28 @@
       <template v-else-if="tooltip.change">
         <div class="change-tooltip-header">
           <i class="fas fa-clock-rotate-left" />
-          {{ t('last_change') }}: {{ tooltip.change.user }} · {{ formatTime(tooltip.change.time) }}
+          <span>{{ t('last_change') }}: <strong>{{ tooltip.change.user }}</strong> • {{ formatTime(tooltip.change.time) }}</span>
         </div>
-        <div
-          v-for="(line, index) in tooltip.change.lines"
-          :key="index"
-          class="change-tooltip-line"
-        >
-          {{ line }}
+        <div class="change-tooltip-body">
+          <div
+            v-for="(line, index) in tooltipTextLines"
+            :key="index"
+            class="change-tooltip-line"
+          >
+            {{ line.text }}
+          </div>
+          <div
+            v-if="tooltipChips.length"
+            class="change-tooltip-chips"
+          >
+            <span
+              v-for="(chip, index) in tooltipChips"
+              :key="index"
+              class="change-tooltip-chip"
+            >
+              {{ chip.text }}
+            </span>
+          </div>
         </div>
       </template>
     </div>
@@ -320,6 +334,13 @@ const tooltipStyle = computed(() => ({
   left: `${tooltip.value.left}px`,
   width: `${tooltip.value.width}px`
 }))
+
+// Comment/info lines are shown as body text; attribute changes
+// (status, tracker…) become chips at the bottom of the tooltip
+const tooltipTextLines = computed(() =>
+  (tooltip.value.change?.lines || []).filter(line => line.type !== 'attr'))
+const tooltipChips = computed(() =>
+  (tooltip.value.change?.lines || []).filter(line => line.type === 'attr'))
 
 const hideTooltip = () => {
   clearTimeout(hoverTimer)
@@ -815,16 +836,31 @@ onBeforeUnmount(() => {
   word-break: break-word;
 }
 
+/* Floating "last change" tooltip: no heavy border — a hairline outline and
+   a two-layer Fluent shadow, fading in with a slight downward slide */
 .change-tooltip {
   position: fixed;
   z-index: 1000;
   max-height: min(420px, calc(100vh - 24px));
   overflow-y: auto;
-  padding: 10px 12px;
+  padding: 12px 16px;
   background: #fff;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #f3f2f1;
   border-radius: 8px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.04);
+  animation: change-tooltip-in 0.15s ease;
+}
+
+@keyframes change-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .change-tooltip-header {
@@ -833,13 +869,44 @@ onBeforeUnmount(() => {
   gap: 6px;
   margin-bottom: 6px;
   font-size: 12px;
-  color: #605e5c;
+  color: #797775;
+
+  .fas {
+    font-size: 14px;
+  }
+
+  strong {
+    font-weight: 600;
+  }
+}
+
+.change-tooltip-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #201f1e;
 }
 
 .change-tooltip-line {
-  font-size: 12px;
-  color: #323130;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #201f1e;
   word-break: break-word;
+}
+
+.change-tooltip-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.change-tooltip-chip {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 12px;
+  color: #605e5c;
+  background-color: #f3f2f1;
+  border-radius: 4px;
 }
 
 /* "Move to folder" flyout: same Fluent flyout as the sort menu */

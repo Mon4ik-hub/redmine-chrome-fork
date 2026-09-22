@@ -108,7 +108,9 @@ const describeDetail = (detail, maps, t) => {
 }
 
 // One journal entry rendered as a notification: author, time and the
-// described lines (comment preview + attribute changes)
+// described lines. Every line is { type, text }: "comment"/"info" lines are
+// rendered as plain text, "attr" lines (status, tracker, attachments…) as
+// compact chips inside the tooltip
 const journalToNotification = (journal, options, maps, t) => {
   const lines = []
 
@@ -116,10 +118,10 @@ const journalToNotification = (journal, options, maps, t) => {
     const notes = String(journal.notes).replace(/\s+/g, ' ').trim()
     const limit = options.tooltip_limit ?? 200
 
-    lines.push(`${t('comment')}: ${truncate(notes, limit)}`)
+    lines.push({ type: 'comment', text: `${t('comment')}: ${truncate(notes, limit)}` })
   }
   for (const detail of journal.details || []) {
-    lines.push(describeDetail(detail, maps, t))
+    lines.push({ type: 'attr', text: describeDetail(detail, maps, t) })
   }
   return {
     user: journal.user?.name || '',
@@ -136,7 +138,7 @@ export const describeLastChange = async (issueData, options, t) => {
     return {
       user: issueData.author?.name || '',
       time: issueData.created_on,
-      lines: [t('issue_created')]
+      lines: [{ type: 'info', text: t('issue_created') }]
     }
   }
 
@@ -166,6 +168,6 @@ export const getIssueNotifications = async (options, issue, sinceMs, t) => {
   return [{
     user: journals[journals.length - 1]?.user?.name || detail.author?.name || '',
     time: detail.updated_on,
-    lines: [t('issue_updated')]
+    lines: [{ type: 'info', text: t('issue_updated') }]
   }]
 }
