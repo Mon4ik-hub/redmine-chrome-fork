@@ -3,21 +3,37 @@
     <Header
       :roles="roles"
       :role-index="roleIndex"
-      :data="data"
+      :data="pivotData"
+      folders-tab
+      :folders-active="activeTab === 'folders'"
+      :folders-task-count="folderIssues.length"
+      :folders-unread="foldersUnread"
       @role-change="handleRoleChange"
+      @folders-activate="handleFoldersTab"
     />
 
-    <Sort
-      :order="order"
-      :unread-count="unreadCount"
-      @order-change="setOrder"
-      @mark-all-read="markAllRead"
-      @filter-change="handleFilterChange"
-    />
+    <template v-if="activeTab === 'issues'">
+      <Sort
+        :order="order"
+        :unread-count="unreadCount"
+        @order-change="setOrder"
+        @mark-all-read="markAllRead"
+        @filter-change="handleFilterChange"
+      />
 
-    <List
-      :sorted-issues="filteredIssues"
-      :current-data="currentData"
+      <List
+        :sorted-issues="filteredIssues"
+        :current-data="currentData"
+        @select-issue="showIssue"
+        @mark-issue-read="markIssueRead"
+      />
+    </template>
+
+    <Folders
+      v-else
+      :folders-data="foldersData"
+      :all-issues="allIssues"
+      :merged-data="mergedData"
       @select-issue="showIssue"
       @mark-issue-read="markIssueRead"
     />
@@ -27,9 +43,11 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import Utils from '@/utils'
+import { emptyFoldersData, getFoldersData } from '@/utils/folders'
 import Header from '@/components/popup/Header.vue'
 import Sort from '@/components/popup/Sort.vue'
 import List from '@/components/popup/List.vue'
+import Folders from '@/components/popup/Folders.vue'
 
 const emit = defineEmits(['select-issue'])
 
@@ -38,6 +56,8 @@ const roleIndex = ref(0)
 const order = ref('default')
 const data = ref({})
 const filterQuery = ref('')
+const foldersData = ref(emptyFoldersData())
+const activeTab = ref('issues')
 
 const currentRole = computed(() => roles.value[roleIndex.value])
 const currentData = computed(() => data.value[currentRole.value] ||
@@ -98,17 +118,87 @@ const handleFilterChange = query => {
 }
 
 const filteredIssues = computed(() => {
-  if (!filterQuery.value) {
-    return sortedIssues.value
-  }
+  // Tasks moved into a folder live only in their folder
+  const assignments = foldersData.value.assignments || {}
+  let issues = sortedIssues.value.filter(issue => !assignments[issue.id])
 
-  return sortedIssues.value.filter(issue => issue.subject.toLowerCase().includes(filterQuery.value))
+  if (filterQuery.value) {
+    issues = issues.filter(issue => issue.subject.toLowerCase().includes(filterQuery.value))
+  }
+  return issues
+})
+
+// Every issue across all roles (each issue belongs to exactly one role
+// thanks to Utils.filterIssues), for the folders view
+const allIssues = computed(() => {
+  const seen = new Set()
+  const issues = []
+
+  for (const role of roles.value) {
+    for (const issue of data.value[role]?.issues || []) {
+      if (!seen.has(issue.id)) {
+        seen.add(issue.id)
+        issues.push(issue)
+      }
+    }
+  }
+  return issues
+})
+
+// Read state merged across roles, so a task inside a folder keeps its
+// unread/read status whichever role it arrived through
+const mergedData = computed(() => {
+  const unreadList = []
+  const readAt = {}
+
+  for (const role of roles.value) {
+    const roleData = data.value[role] || {}
+
+    unreadList.push(...roleData.unreadList || [])
+    Object.assign(readAt, roleData.readAt || {})
+  }
+  return { issues: [], unreadList, readList: [], readAt, lastRead: 0 }
+})
+
+const folderIssues = computed(() =>
+  allIssues.value.filter(issue => foldersData.value.assignments?.[issue.id]))
+
+const foldersUnread = computed(() => {
+  const unreadSet = new Set(mergedData.value.unreadList)
+
+  return folderIssues.value.filter(issue => unreadSet.has(Utils.getUUID(issue))).length
+})
+
+// Pivot counts mirror what each role tab actually shows: tasks moved into
+// folders are listed under "Папки" only
+const pivotData = computed(() => {
+  const assignments = foldersData.value.assignments || {}
+  const result = {}
+
+  for (const [role, roleData] of Object.entries(data.value)) {
+    if (!roleData?.issues) {
+      result[role] = roleData
+      continue
+    }
+    const hiddenUuids = new Set(roleData.issues
+      .filter(issue => assignments[issue.id])
+      .map(issue => Utils.getUUID(issue)))
+
+    result[role] = {
+      ...roleData,
+      issues: roleData.issues.filter(issue => !assignments[issue.id]),
+      unreadList: (roleData.unreadList || [])
+        .filter(uuid => !hiddenUuids.has(uuid))
+    }
+  }
+  return result
 })
 
 const saveSettings = async () => {
   const settings = {
     role_index: roleIndex.value,
-    order: order.value
+    order: order.value,
+    tab: activeTab.value
   }
 
   await Utils.setStorage('popup_settings', settings)
@@ -116,6 +206,12 @@ const saveSettings = async () => {
 
 const handleRoleChange = async index => {
   roleIndex.value = index
+  activeTab.value = 'issues'
+  await saveSettings()
+}
+
+const handleFoldersTab = async () => {
+  activeTab.value = 'folders'
   await saveSettings()
 }
 
@@ -157,20 +253,34 @@ const markAllRead = async () => {
 }
 
 const markIssueRead = async issue => {
-  const curData = data.value[currentRole.value]
+  // The issue may live in any role (especially inside folders), so find
+  // the role it actually belongs to instead of using the selected one
   const uuid = Utils.getUUID(issue)
-  const index = curData.unreadList.indexOf(uuid)
 
-  if (index !== -1) {
-    curData.unreadList.splice(index, 1)
-    curData.readList.push(uuid)
-    // Remember when this issue was last seen so the grouped view can
-    // count only the changes added after that
-    if (!curData.readAt) {
-      curData.readAt = {}
+  for (const role of roles.value) {
+    const curData = data.value[role]
+
+    if (!curData?.unreadList) {
+      continue
     }
-    curData.readAt[issue.id] = Date.now()
-    await saveData()
+
+    const index = curData.unreadList.indexOf(uuid)
+
+    if (index !== -1) {
+      curData.unreadList.splice(index, 1)
+      if (!curData.readList) {
+        curData.readList = []
+      }
+      curData.readList.push(uuid)
+      // Remember when this issue was last seen so the grouped view can
+      // count only the changes added after that
+      if (!curData.readAt) {
+        curData.readAt = {}
+      }
+      curData.readAt[issue.id] = Date.now()
+      await saveData()
+      return
+    }
   }
 }
 
@@ -185,7 +295,9 @@ const loadSettings = async () => {
   roles.value = options.issues || ['assigned_to_id']
   roleIndex.value = popupSettings.role_index || 0
   order.value = popupSettings.order || 'default'
+  activeTab.value = popupSettings.tab === 'folders' ? 'folders' : 'issues'
   data.value = await Utils.getStorage('data') || {}
+  foldersData.value = await getFoldersData()
 }
 
 const fixBadgeError = async () => {
@@ -219,6 +331,10 @@ onMounted(async () => {
       if (newSettings.data) {
         data.value = newSettings.data
       }
+    } else if (changes.folders) {
+      // Moves made from the browser context menu land here instantly
+      foldersData.value = JSON.parse(changes.folders.newValue || '{}') ||
+        emptyFoldersData()
     }
   })
 })

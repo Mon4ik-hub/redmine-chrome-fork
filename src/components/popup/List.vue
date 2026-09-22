@@ -31,7 +31,7 @@
         <div class="fluent-content">
           <div class="fluent-title-block">
             <a
-              href="#"
+              :href="issueUrl(issue)"
               class="fluent-id"
               @click.prevent.stop="selectIssue(issue, index)"
             >#{{ issue.id }}</a>
@@ -55,6 +55,13 @@
             @click.stop="handleCopyIssueId(issue.id, $event)"
           >
             <i class="fas fa-copy" />
+          </button>
+          <button
+            class="fluent-action-btn"
+            :title="t('move_to_folder')"
+            @click.stop="openFolderMenu(issue, $event)"
+          >
+            <i class="fas fa-folder-plus" />
           </button>
           <button
             class="fluent-action-btn"
@@ -142,6 +149,44 @@
       </template>
     </div>
 
+    <!-- "Move to folder" flyout anchored to the folder icon of a row.
+         Rendered with "position: fixed" like the tooltip, so it never
+         stretches the popup layout -->
+    <div
+      v-if="folderMenu.visible"
+      ref="folderMenuEl"
+      class="folder-flyout"
+      :style="folderMenuStyle"
+    >
+      <button
+        v-if="folderMenu.currentFolderId"
+        class="folder-flyout-item is-remove"
+        @click="onRemoveFromFolder"
+      >
+        <i class="fas fa-xmark" /> {{ t('remove_from_folder') }}
+      </button>
+      <button
+        v-for="folder in folderMenu.folders"
+        :key="folder.id"
+        class="folder-flyout-item"
+        :class="{ 'is-current': folder.id === folderMenu.currentFolderId }"
+        @click="onMoveToFolder(folder.id)"
+      >
+        <i class="fas fa-folder" />
+        <span class="folder-flyout-name">{{ folder.name }}</span>
+        <i
+          v-if="folder.id === folderMenu.currentFolderId"
+          class="fas fa-check"
+        />
+      </button>
+      <div
+        v-if="!folderMenu.folders.length"
+        class="folder-flyout-empty"
+      >
+        {{ t('no_folders_short') }}
+      </div>
+    </div>
+
     <div
       v-if="currentData?.error"
       class="error-block"
@@ -163,6 +208,11 @@ import Utils from '@/utils'
 import StatusBadge from '@/components/popup/StatusBadge.vue'
 import { trackerColor } from '@/utils/statusColors'
 import { describeLastChange, getIssueDetail, getIssueNotifications } from '@/utils/changes'
+import {
+  getFoldersData,
+  moveIssueToFolder,
+  removeIssueFromFolder
+} from '@/utils/folders'
 import dayjs from 'dayjs'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
@@ -356,6 +406,112 @@ const onTooltipEnter = () => {
 
 const onTooltipLeave = () => hideTooltip()
 
+// "Move to folder" flyout: one shared instance anchored to the folder icon
+// of a row. The task is bound by its eternal id, so moving it once routes
+// all its future notifications into the folder
+const folderMenuEl = ref(null)
+let folderMenuOpener = null
+const emptyFolderMenu = () => ({
+  visible: false,
+  top: 0,
+  left: 0,
+  issue: null,
+  folders: [],
+  currentFolderId: null
+})
+const folderMenu = ref(emptyFolderMenu())
+
+const folderMenuStyle = computed(() => ({
+  top: `${folderMenu.value.top}px`,
+  left: `${folderMenu.value.left}px`
+}))
+
+// Listeners for an open flyout are tied to an AbortController signal, so
+// closing is a single abort() with no reference cycle between handlers
+let folderMenuController = null
+
+const closeFolderMenu = () => {
+  folderMenuController?.abort()
+  folderMenuController = null
+  folderMenuOpener = null
+  folderMenu.value = emptyFolderMenu()
+}
+
+const openFolderMenu = async (issue, event) => {
+  // The opener button is skipped by the outside-click guard, so a second
+  // click on it toggles the flyout closed
+  if (folderMenu.value.visible && folderMenu.value.issue?.id === issue.id) {
+    closeFolderMenu()
+    return
+  }
+
+  hideTooltip()
+
+  const button = event.currentTarget
+  const data = await getFoldersData()
+  const rect = button.getBoundingClientRect()
+
+  closeFolderMenu()
+  folderMenu.value = {
+    visible: true,
+    top: rect.bottom + 4,
+    left: rect.left,
+    issue,
+    folders: data.list,
+    currentFolderId: data.assignments[issue.id] || null
+  }
+  folderMenuOpener = button
+
+  folderMenuController = new AbortController()
+  const { signal } = folderMenuController
+
+  document.addEventListener('click', event => {
+    if (folderMenuEl.value?.contains(event.target) || event.target === folderMenuOpener) {
+      return
+    }
+    closeFolderMenu()
+  }, { capture: true, signal })
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      closeFolderMenu()
+    }
+  }, { signal })
+
+  await nextTick()
+  // The button sits near the row's right edge, so align the flyout's right
+  // edge with it and clamp to the viewport; flip above when it does not
+  // fit below
+  const el = folderMenuEl.value
+
+  if (el) {
+    const height = el.offsetHeight
+    const fitsBelow = rect.bottom + 4 + height <= window.innerHeight - 8
+
+    folderMenu.value.top = fitsBelow ?
+      rect.bottom + 4 :
+      Math.max(8, rect.top - height - 4)
+    folderMenu.value.left = Math.max(8, rect.right - el.offsetWidth)
+  }
+}
+
+const onMoveToFolder = async folderId => {
+  const issue = folderMenu.value.issue
+
+  closeFolderMenu()
+  if (issue) {
+    await moveIssueToFolder(issue.id, folderId)
+  }
+}
+
+const onRemoveFromFolder = async () => {
+  const issue = folderMenu.value.issue
+
+  closeFolderMenu()
+  if (issue) {
+    await removeIssueFromFolder(issue.id)
+  }
+}
+
 const handleCopyIssueId = async (issueId, event) => {
   await Utils.copyIssueId(issueId)
   toast.value.show(event)
@@ -374,24 +530,37 @@ const selectIssue = (issue, index) => {
   })
 }
 
-const openIssueInNewTab = issue => {
+// Real issue URL on the row link: right-clicking it opens the browser
+// context menu with the "Move to folder" item, which parses the eternal
+// issue id from this URL
+const issueUrl = issue => {
   const baseUrl = options.value.url?.endsWith('/') ?
     options.value.url.slice(0, -1) :
     options.value.url
 
-  window.open(`${baseUrl}/issues/${issue.id}`, '_blank')
+  return `${baseUrl}/issues/${issue.id}`
+}
+
+const openIssueInNewTab = issue => {
+  window.open(issueUrl(issue), '_blank')
+}
+
+// The tooltip and the folder flyout are fixed to the viewport, so they
+// must not stay in place while the list is being scrolled
+const onViewportScroll = () => {
+  hideTooltip()
+  closeFolderMenu()
 }
 
 onMounted(async () => {
   options.value = await Utils.getStorage('options') || {}
-  // The tooltip is fixed to the viewport, so it must not stay in place
-  // while the list is being scrolled
-  window.addEventListener('scroll', hideTooltip, true)
+  window.addEventListener('scroll', onViewportScroll, true)
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('scroll', hideTooltip, true)
+  window.removeEventListener('scroll', onViewportScroll, true)
   hideTooltip()
+  closeFolderMenu()
 })
 </script>
 
@@ -671,6 +840,78 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: #323130;
   word-break: break-word;
+}
+
+/* "Move to folder" flyout: same Fluent flyout as the sort menu */
+.folder-flyout {
+  position: fixed;
+  z-index: 1001;
+  min-width: 200px;
+  max-width: 280px;
+  max-height: min(320px, calc(100vh - 24px));
+  overflow-y: auto;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.14);
+}
+
+.folder-flyout-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #201f1e;
+  text-align: left;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+
+  &:hover {
+    background-color: #f3f2f1;
+  }
+
+  &.is-current {
+    font-weight: 600;
+    color: #005a9e;
+    background-color: #e5f1fb;
+  }
+
+  &.is-remove {
+    color: #c42b1c;
+    border-bottom: 1px solid #f3f2f1;
+    border-radius: 4px 4px 0 0;
+
+    &:hover {
+      color: #d13438;
+      background-color: #fde7e9;
+    }
+  }
+
+  .fas {
+    flex-shrink: 0;
+    font-size: 12px;
+  }
+}
+
+.folder-flyout-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-flyout-empty {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #797775;
 }
 
 .error-block {
