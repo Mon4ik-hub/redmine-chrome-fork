@@ -348,16 +348,22 @@ const effectiveProjectIds = computed(() => {
   return ids
 })
 
-// Combobox contents: trackers of the monitored projects only
-const trackerOptions = computed(() => allTrackerOptions.value.filter(it =>
-  it.projectIds.some(id => effectiveProjectIds.value.has(id))))
+// Combobox contents: with the master checkbox on, "all trackers" shows
+// the union over every visible project and stays put while projects are
+// being picked; manual mode narrows the list to the monitored projects
+const trackerOptions = computed(() => {
+  const scope = options.value.allTrackers ?
+    new Set(projectNodes.value.keys()) : effectiveProjectIds.value
 
-// Keep the selection inside the monitored set: trackers that fall out
-// (their project got deselected) are silently dropped. An empty union
-// means no project is picked yet — leave the picks alone so switching
-// projects doesn't wipe them; a fully emptied selection refills with
-// the whole union instead of leaving the manual mode blocked
-watch(effectiveProjectIds, () => {
+  return allTrackerOptions.value.filter(it =>
+    it.projectIds.some(id => scope.has(id)))
+})
+
+// Recompute the manual selection against the current union: keep the
+// picks that survive, refill from the union when none do. An empty
+// union means no project is picked yet — leave the picks alone so
+// switching projects doesn't wipe them
+const applyTrackerScope = () => {
   const available = trackerOptions.value.map(it => it.value)
 
   if (!available.length) {
@@ -367,13 +373,23 @@ watch(effectiveProjectIds, () => {
   const kept = options.value.trackers.filter(id => availableSet.has(id))
 
   options.value.trackers = kept.length ? kept : available
+}
+
+// Project changes only matter in manual mode: with the master checkbox
+// on nothing gets picked, so the disabled box must not fill itself
+watch(effectiveProjectIds, () => {
+  if (!options.value.allTrackers) {
+    applyTrackerScope()
+  }
 })
 
-// Switching from "all trackers" to a manual selection starts from the
-// current list fully checked, matching what "all" stood for
+// Leaving "all trackers" starts from the monitored union fully checked;
+// returning to it clears the picks — "all" needs no selection
 watch(() => options.value.allTrackers, all => {
-  if (!all && options.value.trackers.length === 0) {
-    options.value.trackers = trackerOptions.value.map(it => it.value)
+  if (all) {
+    options.value.trackers = []
+  } else {
+    applyTrackerScope()
   }
 })
 
@@ -472,11 +488,13 @@ const getData = async savedOptions => {
     options.value.allTrackers = savedOptions.allTrackers ?? true
 
     // Drop saved ids that no longer exist: project or tracker removed,
-    // or access to it lost
+    // or access to it lost. A saved selection only matters in manual
+    // mode — with the master checkbox on there is nothing to pick
     options.value.projects = (savedOptions.projects || []).filter(id => nodes.has(id))
     const visibleTrackerIds = new Set(trackerChoices.map(it => it.value))
 
-    options.value.trackers = (savedOptions.trackers || []).filter(id => visibleTrackerIds.has(id))
+    options.value.trackers = options.value.allTrackers ? [] :
+      (savedOptions.trackers || []).filter(id => visibleTrackerIds.has(id))
 
     options.value.issues = savedOptions.issues || list.value.issues.map(it => it.value)
 
