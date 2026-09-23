@@ -349,6 +349,11 @@ onMounted(async () => {
    The cap must be a fixed length: the popup window is sized to its
    content, so a viewport-relative cap (100vh) feeds back into the window
    size and the popup collapses to a sliver */
+/* Overflow must stay visible: the sort menu and the filter flyout open
+   over (and may hang below) the card edge, and overflow: hidden would cut
+   them off. The clipped corners are reproduced on the children instead:
+   the pivot header rounds its top and the scroll containers round their
+   bottom */
 .fluent-popup {
   display: flex;
   flex-direction: column;
@@ -357,6 +362,5 @@ onMounted(async () => {
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.14);
-  overflow: hidden;
 }
 </style>

@@ -627,6 +627,10 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Repeat the card's bottom corners: the card itself no longer clips its
+     children (see .fluent-popup in Issues.vue), so scrolled rows would
+     paint square corners over the rounded border */
+  border-radius: 0 0 7px 7px;
   scrollbar-width: thin;
   scrollbar-color: #c8c6c4 transparent;
 }

@@ -15,6 +15,7 @@
       :class="classes"
       :disabled="disabled ? true : undefined"
       :data-hint="hint"
+      :data-bs-config="popperConfigAttr"
       data-hint-html="true"
       type="button"
       data-bs-toggle="dropdown"
@@ -43,6 +44,7 @@
       class="{ 'dropdown-toggle': toggleIcon }"
       :disabled="disabled ? true : undefined"
       :data-hint="hint"
+      :data-bs-config="popperConfigAttr"
       data-hint-html="true"
       href="#"
       :tabindex="disabled ? -1 : 0"
@@ -148,6 +150,15 @@ const props = defineProps({
   lazy: {
     type: Boolean,
     default: false
+  },
+  // Extra Popper configuration for the menu, e.g. `{ strategy: 'fixed' }`.
+  // A Chrome extension popup window resizes itself to fit
+  // absolutely-positioned overflow, so an absolutely-positioned menu hanging
+  // over the popup edge widens the whole window and shifts the panel; a
+  // fixed-position menu stays out of the content bounds
+  popperConfig: {
+    type: Object,
+    default: null
   }
 })
 const btnSize = ref('')
@@ -174,6 +185,16 @@ const classes = computed(() => {
 const loadingTextI18n = computed(() => window.AdminApp.i18n.loadingText)
 const element = computed(() => props.table ? 'table' : 'ul')
 const showItems = computed(() => !props.lazy || initializedItems.value)
+// Passed as the data-bs-config attribute: in the popup the menu is opened by
+// Bootstrap's global data-api click handler, which creates its own instance
+// and never goes through getDropdown(), so a constructor-only config would
+// be ignored there. data-bs-config is read by every instance creation path.
+// The attribute takes the component's own config shape, so the Popper options
+// go under its popperConfig key
+const popperConfigAttr = computed(() =>
+  props.popperConfig ?
+    JSON.stringify({ popperConfig: props.popperConfig }) :
+    undefined)
 const refreshSize = () => {
   const parentClass = container.value.parentElement.classList
 
@@ -194,7 +215,10 @@ const getDropdown = () => {
     console.error('Element [data-bs-toggle="dropdown"] not exits')
     return
   }
-  return window.bootstrap.Dropdown.getInstance(el) || new window.bootstrap.Dropdown(el)
+  return window.bootstrap.Dropdown.getInstance(el) ||
+    new window.bootstrap.Dropdown(el, props.popperConfig ?
+      { popperConfig: props.popperConfig } :
+      undefined)
 }
 const isShow = () => container.value.querySelector('[data-bs-toggle="dropdown"]').classList.contains('show')
 const open = () => {

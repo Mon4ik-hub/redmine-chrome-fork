@@ -25,6 +25,7 @@
         icon="fas fa-sort-amount-down"
         :toggle-icon="false"
         class="order-by"
+        :popper-config="{ strategy: 'fixed' }"
       >
         <DropdownItem
           :active="order === 'default'"
@@ -226,7 +227,10 @@ watch(isFilterOpen, newVal => {
 /* The sort dropdown renders its toggle as a plain <a>: give it the same
    icon-button look as the filter button, its menu a Fluent flyout */
 .order-by {
-  :deep(a) {
+  /* Direct child only: without `>` this cascade also hits the menu item
+     anchors and squeezes them to the 28px toggle box, pushing their labels
+     outside the menu panel to the left */
+  > :deep(a) {
     display: inline-flex;
     align-items: center;
     justify-content: center;

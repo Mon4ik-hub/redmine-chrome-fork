@@ -182,6 +182,9 @@ const removeFolder = async folderId => {
   min-height: 0;
   overflow-y: auto;
   background-color: #fff;
+  /* Repeat the card's bottom corners: the card itself no longer clips its
+     children (see .fluent-popup in Issues.vue) */
+  border-radius: 0 0 7px 7px;
   scrollbar-width: thin;
   scrollbar-color: #c8c6c4 transparent;
 }

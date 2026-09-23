@@ -101,6 +101,10 @@ const getRoleUnreadCount = role => props.data[role]?.unreadList?.length || 0
   gap: 2px;
   padding: 0 4px;
   background-color: #ffffff;
+  /* Repeat the card's top corners: the card itself no longer clips its
+     children (see .fluent-popup in Issues.vue), so a square header would
+     paint over the rounded border */
+  border-radius: 7px 7px 0 0;
   border-bottom: 1px solid #f3f2f1;
   flex-shrink: 0;
 }
