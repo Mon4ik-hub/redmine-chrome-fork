@@ -87,41 +87,48 @@ const formatValue = (name, value, maps) => {
   return String(value)
 }
 
+// One "detail" of a journal entry as { label, value }: the label
+// ("Комментарий", "Статус"…) is rendered muted in the panel, the value keeps
+// the readable change ("Новая → В работе")
 const describeDetail = (detail, maps, t) => {
   const { property, name, old_value: oldValue, new_value: newValue } = detail
 
   if (property === 'attachment') {
-    return `${t('attachment_added')}: ${newValue || name}`
+    return { label: t('attachment_added'), value: newValue || name }
   }
   if (property === 'relation') {
-    return `${t('relation_changed')}: ${name} ${oldValue || ''} → ${newValue || ''}`.replace(/\s+/g, ' ').trim()
+    return {
+      label: t('relation_changed'),
+      value: `${name} ${oldValue || ''} → ${newValue || ''}`.replace(/\s+/g, ' ').trim()
+    }
   }
 
   const label = property === 'cf' ? `${t('custom_field')} ${name}` : attrLabel(name, t)
   const oldText = formatValue(name, oldValue, maps)
   const newText = formatValue(name, newValue, maps)
 
-  if (oldText && newText) {
-    return `${label}: ${oldText} → ${newText}`
-  }
-  return `${label}: ${newText || oldText}`
+  return { label, value: oldText && newText ? `${oldText} → ${newText}` : newText || oldText }
 }
 
 // One journal entry rendered as a notification: author, time and the
-// described lines. Every line is { type, text }: "comment"/"info" lines are
-// rendered as plain text, "attr" lines (status, tracker, attachments…) as
-// compact chips inside the tooltip
+// described lines. Every line is { type, label?, value?, text }: the panel
+// renders "label" muted before "value", while "text" (`${label}: ${value}`)
+// keeps the plain single-string form used by the hover tooltip
 const journalToNotification = (journal, options, maps, t) => {
   const lines = []
 
   if (journal.notes) {
     const notes = String(journal.notes).replace(/\s+/g, ' ').trim()
     const limit = options.tooltip_limit ?? 200
+    const label = t('comment')
+    const value = truncate(notes, limit)
 
-    lines.push({ type: 'comment', text: `${t('comment')}: ${truncate(notes, limit)}` })
+    lines.push({ type: 'comment', label, value, text: `${label}: ${value}` })
   }
   for (const detail of journal.details || []) {
-    lines.push({ type: 'attr', text: describeDetail(detail, maps, t) })
+    const { label, value } = describeDetail(detail, maps, t)
+
+    lines.push({ type: 'attr', label, value, text: `${label}: ${value}` })
   }
   return {
     user: journal.user?.name || '',
@@ -147,9 +154,10 @@ export const describeLastChange = async (issueData, options, t) => {
   return journalToNotification(journal, options, maps, t)
 }
 
-// Change notifications of one issue since "sinceMs", newest first, capped
-// to options.notifications_limit (0 = all). The full count is returned as
-// "total", so the row badge keeps showing the exact number of unread
+// Change notifications of one issue since "sinceMs", oldest first
+// (chronological, like a comment thread read top-down), capped to the
+// newest options.notifications_limit (0 = all). The full count is returned
+// as "total", so the row badge keeps showing the exact number of unread
 // changes even when the panel shows only the newest ones. When the list is
 // empty (the issue is unread but nothing matches, e.g. updated_on
 // was bumped by a subtask) a single fallback notification is returned,
@@ -157,16 +165,15 @@ export const describeLastChange = async (issueData, options, t) => {
 export const getIssueNotifications = async (options, issue, sinceMs, t) => {
   const detail = await getIssueDetail(options, issue)
   const maps = await getNameMaps(options)
-  const notifications = (detail.journals || [])
+  const items = (detail.journals || [])
     .filter(journal => new Date(journal.created_on).getTime() > sinceMs)
     .map(journal => journalToNotification(journal, options, maps, t))
 
-  if (notifications.length > 0) {
-    const items = notifications.reverse()
+  if (items.length > 0) {
     const limit = options.notifications_limit ?? 0
 
     return {
-      items: limit > 0 ? items.slice(0, limit) : items,
+      items: limit > 0 ? items.slice(Math.max(0, items.length - limit)) : items,
       total: items.length
     }
   }

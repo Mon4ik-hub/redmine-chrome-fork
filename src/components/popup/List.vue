@@ -12,6 +12,7 @@
         expanded: isGrouped && isUnread(issue) && expanded[issue.id],
         'is-unread': isUnread(issue)
       }"
+      :style="{ '--task-accent': trackerColor(issue.tracker.name) }"
       @click="markIssueRead(issue)"
       @mouseenter="onRowEnter(issue, $event)"
       @mouseleave="onRowLeave"
@@ -25,7 +26,6 @@
         />
         <div
           class="fluent-left-accent"
-          :style="{ backgroundColor: trackerColor(issue.tracker.name) }"
           :title="issue.tracker.name"
         />
         <div class="fluent-content">
@@ -105,14 +105,25 @@
               class="notification-item"
             >
               <div class="notification-meta">
-                <i class="fas fa-user" /> {{ item.user }} · {{ formatTime(item.time) }}
+                <i class="fas fa-user" />
+                <span class="notification-author">{{ item.user }}</span>
+                <span>• {{ formatTime(item.time) }}</span>
               </div>
               <div
                 v-for="(line, lineIndex) in item.lines"
                 :key="lineIndex"
                 class="notification-line"
+                :class="{
+                  'is-comment': line.type === 'comment',
+                  'is-system': line.type !== 'comment'
+                }"
               >
-                {{ line.text }}
+                <template v-if="line.label !== undefined">
+                  <span class="item-label">{{ line.label }}:</span> {{ line.value }}
+                </template>
+                <template v-else>
+                  {{ line.text }}
+                </template>
               </div>
             </div>
             <div
@@ -675,6 +686,7 @@ onBeforeUnmount(() => {
   width: 3px;
   height: 16px;
   margin: 3px 12px 0 0;
+  background-color: var(--task-accent, #0078d4);
   border-radius: 2px;
   flex-shrink: 0;
 }
@@ -846,11 +858,15 @@ onBeforeUnmount(() => {
   color: #323130;
 }
 
+/* One journal entry as an activity block: a 2px accent line on the left in
+   the task accent color, the author line above the change lines */
 .notification-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-bottom: 8px;
+  gap: 3px;
+  margin-bottom: 10px;
+  padding-left: 12px;
+  border-left: 2px solid var(--task-accent, #0078d4);
 
   &:last-child {
     margin-bottom: 0;
@@ -862,12 +878,38 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #605e5c;
+  color: #797775;
+}
+
+.notification-author {
+  font-weight: 600;
+  color: #323130;
 }
 
 .notification-line {
   font-size: 12px;
   word-break: break-word;
+}
+
+/* Attribute changes and fallback lines stay muted, the label one step
+   lighter than the value */
+.notification-line.is-system {
+  color: #605e5c;
+}
+
+.item-label {
+  color: #797775;
+}
+
+/* Text comments are highlighted: accent-colored left border, a faint
+   neutral background, dark text, rounded on the side away from the border */
+.notification-line.is-comment {
+  margin: 2px 0;
+  padding: 4px 6px;
+  color: #201f1e;
+  background-color: rgba(0, 0, 0, 0.03);
+  border-left: 3px solid var(--task-accent, #0078d4);
+  border-radius: 0 3px 3px 0;
 }
 
 /* Footer of the panel when notifications_limit trims the list: how many
