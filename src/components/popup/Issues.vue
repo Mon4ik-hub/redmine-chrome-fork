@@ -342,8 +342,14 @@ onMounted(async () => {
 
 <style lang="scss" scoped>
 /* Fluent flyout card: white surface with the characteristic 8px corner
-   radius, sitting on the neutral gray background of the popup */
+   radius, sitting on the neutral gray background of the popup. A flex
+   column capped at the viewport height (minus the 8px padding of
+   .popup-container on each side), so the pivot tabs and the command bar
+   stay pinned while the list below scrolls inside the card */
 .fluent-popup {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 16px);
   background-color: #ffffff;
   border: 1px solid #e0e0e0;
   border-radius: 8px;

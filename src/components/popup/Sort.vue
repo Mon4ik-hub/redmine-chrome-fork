@@ -164,6 +164,7 @@ watch(isFilterOpen, newVal => {
   padding: 6px 12px;
   background-color: #fff;
   border-bottom: 1px solid #f3f2f1;
+  flex-shrink: 0;
 }
 
 .commandbar-actions {

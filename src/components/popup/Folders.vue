@@ -178,7 +178,12 @@ const removeFolder = async folderId => {
 /* Fluent folder management view: creation row on top, folders as grouped
    collapsible sections reusing the task list inside */
 .folders-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   background-color: #fff;
+  scrollbar-width: thin;
+  scrollbar-color: #c8c6c4 transparent;
 }
 
 .folder-create-row {

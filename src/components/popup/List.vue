@@ -590,6 +590,18 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss" scoped>
+/* The list is the scroll container of the popup: the pivot tabs and the
+   command bar above stay pinned while tasks scroll under them (a nested
+   .issues-list inside a folder body is content-sized, so these rules
+   simply do nothing there) */
+.issues-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #c8c6c4 transparent;
+}
+
 /* Fluent task rows: a colored tracker accent on the left, the id in blue,
    meta as soft badges, actions revealed on hover; the row lives in a
    container together with its expandable details panel */

@@ -102,6 +102,7 @@ const getRoleUnreadCount = role => props.data[role]?.unreadList?.length || 0
   padding: 0 4px;
   background-color: #ffffff;
   border-bottom: 1px solid #f3f2f1;
+  flex-shrink: 0;
 }
 
 .pivot-item {
