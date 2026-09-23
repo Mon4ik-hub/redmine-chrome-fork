@@ -1,5 +1,7 @@
 export default {
   add_redmine_first: 'Please add Redmine first！',
+  all_projects: 'All available projects',
+  all_trackers: 'All trackers',
   assigned_to: 'Assigned to: ',
   attachment_added: 'File',
   attr_assigned_to_id: 'Assignee',
@@ -69,7 +71,10 @@ export default {
   order_by_updated: 'Updated',
   percent_done: '% Done: ',
   priority: 'Priority: ',
+  projects_empty: 'No projects available',
   projects_list: 'Projects list: ',
+  projects_search: 'Search projects…',
+  projects_subtree_hint: 'Uncheck to pick projects manually; selecting a project includes its subprojects',
   redmine_api_key: 'Redmine API key: ',
   redmine_list: 'Redmine address: ',
   rel_blocked: 'Blocked by',
@@ -103,6 +108,7 @@ export default {
   tooltip_full: 'Full',
   tooltip_limit: 'Symbols in tooltip: ',
   trackers_list: 'Trackers list: ',
+  trackers_union_hint: 'Uncheck to pick trackers manually; only trackers enabled in the monitored projects are listed',
   update: 'Update',
   update_interval: 'Update interval: ',
   yes: 'Yes'

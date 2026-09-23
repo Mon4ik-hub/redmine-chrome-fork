@@ -39,7 +39,50 @@
     </FormGroup>
 
     <FormGroup
-      v-for="select in selects"
+      v-for="select in selectsTop"
+      :key="select.name"
+      :label="select.label"
+    >
+      <MultipleSelect
+        v-model="options[select.name]"
+        :data="list[select.name]"
+        :multiple="!select.single"
+      />
+    </FormGroup>
+
+    <FormGroup :description="t('projects_subtree_hint')">
+      <template #label>
+        <FormCheckbox
+          v-model="options.allProjects"
+          :label="t('all_projects')"
+        />
+      </template>
+      <ProjectTree
+        v-model="options.projects"
+        :nodes="projectTree"
+        :disabled="options.allProjects"
+        :search-placeholder="t('projects_search')"
+        :empty-text="t('projects_empty')"
+      />
+    </FormGroup>
+
+    <FormGroup :description="t('trackers_union_hint')">
+      <template #label>
+        <FormCheckbox
+          v-model="options.allTrackers"
+          :label="t('all_trackers')"
+        />
+      </template>
+      <MultipleSelect
+        v-model="options.trackers"
+        :data="trackerOptions"
+        :disabled="options.allTrackers"
+        multiple
+      />
+    </FormGroup>
+
+    <FormGroup
+      v-for="select in selectsBottom"
       :key="select.name"
       :label="select.label"
     >
@@ -139,8 +182,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import ProjectTree from '@/components/options/ProjectTree.vue'
 import Utils from '@/utils'
 import { sendMessage } from '@/utils/messaging'
 import { statusColor } from '@/utils/statusColors'
@@ -152,10 +196,15 @@ const loading = ref(false)
 const options = ref({
   url: '',
   key: '',
-  // projects: [],
+  // Follow every project the account can see; when false, only the ids in
+  // `projects` are monitored
+  allProjects: true,
+  projects: [],
   issues: [],
   status: [],
   number: 50,
+  // Track every tracker; when false, only the ids in `trackers` are
+  allTrackers: true,
   trackers: [],
   interval: 10,
   tooltip_limit: 200,
@@ -170,7 +219,6 @@ const options = ref({
   notify_status: []
 })
 const list = ref({
-  // projects: [],
   issues: [
     {
       value: 'assigned_to_id',
@@ -187,7 +235,6 @@ const list = ref({
   ],
   status: [],
   number: [25, 50, 100],
-  trackers: [],
   interval: [
     {
       value: 1,
@@ -238,11 +285,7 @@ const list = ref({
   ],
   notify_status: []
 })
-const selects = [
-  // {
-  //   label: t('projects_list'),
-  //   name: 'projects'
-  // },
+const selectsTop = [
   {
     label: t('issues_list'),
     name: 'issues'
@@ -255,11 +298,9 @@ const selects = [
     label: t('issue_number'),
     name: 'number',
     single: true
-  },
-  {
-    label: t('trackers_list'),
-    name: 'trackers'
-  },
+  }
+]
+const selectsBottom = [
   {
     label: t('update_interval'),
     name: 'interval',
@@ -275,12 +316,84 @@ const selects = [
   }
 ]
 
-const saveEnable = computed(() => Object.values(options.value).every(it => {
-  if (Array.isArray(it)) {
-    return it.length > 0
+// Projects loaded as a tree (only the ones visible to this account) plus
+// the id → node map the monitored set is computed from
+const projectTree = ref([])
+const projectNodes = ref(new Map())
+// Every tracker enabled in at least one visible project, in tree order;
+// each option remembers the projects that enable it
+const allTrackerOptions = ref([])
+
+// Ids the extension effectively monitors: every visible project, or the
+// selected ids with their whole subtrees (in Redmine a parent project
+// already rolls its subprojects' issues in)
+const effectiveProjectIds = computed(() => {
+  if (options.value.allProjects) {
+    return new Set(projectNodes.value.keys())
   }
-  return true
-}))
+
+  const ids = new Set()
+  const collect = node => {
+    ids.add(node.id)
+    node.children.forEach(collect)
+  }
+
+  for (const id of options.value.projects) {
+    const node = projectNodes.value.get(id)
+
+    if (node) {
+      collect(node)
+    }
+  }
+  return ids
+})
+
+// Combobox contents: trackers of the monitored projects only
+const trackerOptions = computed(() => allTrackerOptions.value.filter(it =>
+  it.projectIds.some(id => effectiveProjectIds.value.has(id))))
+
+// Keep the selection inside the monitored set: trackers that fall out
+// (their project got deselected) are silently dropped. An empty union
+// means no project is picked yet — leave the picks alone so switching
+// projects doesn't wipe them; a fully emptied selection refills with
+// the whole union instead of leaving the manual mode blocked
+watch(effectiveProjectIds, () => {
+  const available = trackerOptions.value.map(it => it.value)
+
+  if (!available.length) {
+    return
+  }
+  const availableSet = new Set(available)
+  const kept = options.value.trackers.filter(id => availableSet.has(id))
+
+  options.value.trackers = kept.length ? kept : available
+})
+
+// Switching from "all trackers" to a manual selection starts from the
+// current list fully checked, matching what "all" stood for
+watch(() => options.value.allTrackers, all => {
+  if (!all && options.value.trackers.length === 0) {
+    options.value.trackers = trackerOptions.value.map(it => it.value)
+  }
+})
+
+const saveEnable = computed(() => {
+  if (!options.value.allProjects && options.value.projects.length === 0) {
+    return false
+  }
+  if (!options.value.allTrackers && options.value.trackers.length === 0) {
+    return false
+  }
+  return Object.entries(options.value).every(([key, it]) => {
+    if (key === 'projects' || key === 'trackers') {
+      return true
+    }
+    if (Array.isArray(it)) {
+      return it.length > 0
+    }
+    return true
+  })
+})
 
 // isClosed is kept so the color editor can show the same automatic muted
 // color the popup uses for closed statuses
@@ -308,8 +421,62 @@ const getData = async savedOptions => {
     options.value.url = savedOptions.url
     options.value.key = savedOptions.key
 
-    // list.value.projects = toList(await Utils.getAPI(savedOptions, 'projects'))
-    // options.value.projects = savedOptions.projects || list.value.projects.map(it => it.value)
+    // One paginated call gives both the project hierarchy and the
+    // trackers enabled in every visible project
+    const projects = await Utils.getAPIAll(savedOptions, 'projects', { include: 'trackers' })
+    const nodes = new Map()
+
+    for (const project of projects) {
+      nodes.set(project.id, {
+        id: project.id,
+        name: project.name,
+        children: []
+      })
+    }
+    const roots = []
+
+    for (const project of projects) {
+      const node = nodes.get(project.id)
+      // A parent the account cannot see is missing from the map, so the
+      // subproject simply becomes a root
+      const parent = project.parent ? nodes.get(project.parent.id) : null
+
+      if (parent && parent !== node) {
+        parent.children.push(node)
+      } else {
+        roots.push(node)
+      }
+    }
+    projectTree.value = roots
+    projectNodes.value = nodes
+
+    const trackerChoices = []
+    const trackerIndex = new Map()
+
+    for (const project of projects) {
+      for (const tracker of project.trackers || []) {
+        if (!trackerIndex.has(tracker.id)) {
+          const option = { value: tracker.id, text: tracker.name, projectIds: [] }
+
+          trackerIndex.set(tracker.id, option)
+          trackerChoices.push(option)
+        }
+        trackerIndex.get(tracker.id).projectIds.push(project.id)
+      }
+    }
+    allTrackerOptions.value = trackerChoices
+
+    // Missing fields mean options saved before the filters existed: keep
+    // monitoring everything, as before
+    options.value.allProjects = savedOptions.allProjects ?? true
+    options.value.allTrackers = savedOptions.allTrackers ?? true
+
+    // Drop saved ids that no longer exist: project or tracker removed,
+    // or access to it lost
+    options.value.projects = (savedOptions.projects || []).filter(id => nodes.has(id))
+    const visibleTrackerIds = new Set(trackerChoices.map(it => it.value))
+
+    options.value.trackers = (savedOptions.trackers || []).filter(id => visibleTrackerIds.has(id))
 
     options.value.issues = savedOptions.issues || list.value.issues.map(it => it.value)
 
@@ -317,9 +484,6 @@ const getData = async savedOptions => {
     options.value.status = savedOptions.status || [list.value.status[0].value]
 
     options.value.number = savedOptions.number || options.value.number
-
-    list.value.trackers = toList(await Utils.getAPI(savedOptions, 'trackers'))
-    options.value.trackers = savedOptions.trackers || list.value.trackers.map(it => it.value)
 
     options.value.interval = savedOptions.interval || options.value.interval
     // 0 means "no truncation", so the fallback must not treat it as empty
@@ -352,11 +516,12 @@ const save = async () => {
 
   options.value.notifications_limit = Number.isFinite(limit) && limit > 0 ? limit : 0
   // Keep the full status/tracker name lists so the popup can translate
-  // ids into names in the last-change tooltip
+  // ids into names in the last-change tooltip; the tracker list is the
+  // union over visible projects, exactly the set issues can come from
   await Utils.setStorage('options', {
     ...options.value,
     statusList: list.value.status,
-    trackerList: list.value.trackers
+    trackerList: allTrackerOptions.value.map(({ value, text }) => ({ value, text }))
   })
   // Notify background service worker to refresh
   try {

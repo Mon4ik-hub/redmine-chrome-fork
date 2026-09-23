@@ -1,5 +1,7 @@
 export default {
   add_redmine_first: 'Por favor agregue primero a Redmine！',
+  all_projects: 'Todos los proyectos disponibles',
+  all_trackers: 'Todos los rastreadores',
   assigned_to: 'Asignado a: ',
   attachment_added: 'Archivo',
   attr_assigned_to_id: 'Asignado a',
@@ -69,7 +71,10 @@ export default {
   order_by_updated: 'Actualizado',
   percent_done: '% Hecho: ',
   priority: 'Prioridad: ',
+  projects_empty: 'No hay proyectos disponibles',
   projects_list: 'Lista de proyectos: ',
+  projects_search: 'Buscar proyectos…',
+  projects_subtree_hint: 'Desmarque para elegir proyectos manualmente; seleccionar un proyecto incluye sus subproyectos',
   redmine_api_key: 'Clave API Redmine: ',
   redmine_list: 'Dirección Redmine: ',
   rel_blocked: 'Bloqueada por',
@@ -103,6 +108,7 @@ export default {
   tooltip_full: 'Completo',
   tooltip_limit: 'Caracteres en el tooltip: ',
   trackers_list: 'Rastreadores',
+  trackers_union_hint: 'Desmarque para elegir rastreadores manualmente; solo se listan los rastreadores habilitados en los proyectos monitorizados',
   update: 'Actualizar',
   update_interval: 'Actualizar intervalo: ',
   yes: 'Sí'

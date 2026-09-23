@@ -1,5 +1,7 @@
 export default {
   add_redmine_first: 'Redmine を追加してください！',
+  all_projects: 'すべての利用可能なプロジェクト',
+  all_trackers: 'すべてのトラッカー',
   assigned_to: '担当者：',
   attachment_added: 'ファイル',
   attr_assigned_to_id: '担当者',
@@ -69,7 +71,10 @@ export default {
   order_by_updated: '更新時間',
   percent_done: '% 進捗率：',
   priority: '優先度：',
+  projects_empty: '利用可能なプロジェクトがありません',
   projects_list: 'プロジェクトリスト：',
+  projects_search: 'プロジェクトを検索…',
+  projects_subtree_hint: 'チェックを外すとプロジェクトを手動選択できます。プロジェクトを選択するとサブプロジェクトも含まれます',
   redmine_api_key: 'Redmine API キー：',
   redmine_list: 'Redmine 一覧：',
   rel_blocked: 'ブロックされる',
@@ -103,6 +108,7 @@ export default {
   tooltip_full: '全文',
   tooltip_limit: 'ツールチップの文字数：',
   trackers_list: 'トラッカー：',
+  trackers_union_hint: 'チェックを外すとトラッカーを手動選択できます。監視対象プロジェクトで有効なトラッカーのみ表示されます',
   update: '更新',
   update_interval: '更新間隔：',
   yes: 'はい'

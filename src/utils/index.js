@@ -71,7 +71,9 @@ export default {
     }
   },
 
-  async getAPI (options, name, params = {}) {
+  // Raw request: returns the whole parsed response, including the
+  // total_count envelope that pagination needs
+  async requestAPI (options, name, params = {}) {
     const baseUrl = options.url.endsWith('/') ?
       options.url.slice(0, -1) : options.url
     const urlParams = new URLSearchParams()
@@ -94,9 +96,7 @@ export default {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
-      const data = await response.json()
-
-      return data[name] || data
+      return await response.json()
     } catch (error) {
       if (error.name === 'AbortError') {
         console.error('API request timeout:', url)
@@ -105,6 +105,37 @@ export default {
       console.error('API request failed:', error)
       throw error
     }
+  },
+
+  async getAPI (options, name, params = {}) {
+    const data = await this.requestAPI(options, name, params)
+
+    return data[name] || data
+  },
+
+  // Redmine caps list endpoints at 100 items per page, so walk every page
+  // until total_count is reached
+  async getAPIAll (options, name, params = {}) {
+    const limit = 100
+    const items = []
+    let offset = 0
+    let total = Infinity
+    let page = null
+
+    do {
+      const data = await this.requestAPI(options, name, { ...params, limit, offset })
+
+      page = data[name] || []
+      items.push(...page)
+      total = data.total_count ?? items.length
+      offset += page.length
+      // Hard cap against servers reporting bogus totals
+      if (items.length >= 10000) {
+        break
+      }
+    } while (page.length && offset < total)
+
+    return items
   },
 
   filterIssues (issues, data, role) {

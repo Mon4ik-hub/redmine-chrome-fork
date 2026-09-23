@@ -1,5 +1,7 @@
 export default {
   add_redmine_first: '请先添加 Redmine！',
+  all_projects: '所有可用项目',
+  all_trackers: '所有跟踪类型',
   assigned_to: '指派给：',
   attachment_added: '文件',
   attr_assigned_to_id: '经办人',
@@ -69,7 +71,10 @@ export default {
   order_by_updated: '更新时间',
   percent_done: '% 完成：',
   priority: '优先级：',
+  projects_empty: '没有可用项目',
   projects_list: '项目列表：',
+  projects_search: '搜索项目…',
+  projects_subtree_hint: '取消勾选可手动选择项目；选择项目时会包含其子项目',
   redmine_api_key: 'Redmine API 密钥：',
   redmine_list: 'Redmine 地址：',
   rel_blocked: '被阻塞',
@@ -103,6 +108,7 @@ export default {
   tooltip_full: '完整',
   tooltip_limit: '工具提示字数：',
   trackers_list: '跟踪列表：',
+  trackers_union_hint: '取消勾选可手动选择跟踪类型；仅列出所选项目中启用的跟踪类型',
   update: '更新',
   update_interval: '更新间隔：',
   yes: '是'

@@ -1,5 +1,7 @@
 export default {
   add_redmine_first: 'Сначала прочти меня！',
+  all_projects: 'Все доступные проекты',
+  all_trackers: 'Все трекеры',
   assigned_to: 'Назначена: ',
   attachment_added: 'Файл',
   attr_assigned_to_id: 'Исполнитель',
@@ -69,7 +71,10 @@ export default {
   order_by_updated: 'По дате обновления',
   percent_done: '% выполнения: ',
   priority: 'Приоритет: ',
+  projects_empty: 'Нет доступных проектов',
   projects_list: 'Список проектов: ',
+  projects_search: 'Поиск проектов…',
+  projects_subtree_hint: 'Снимите флажок, чтобы выбрать проекты вручную; выбор проекта включает его подпроекты',
   redmine_api_key: 'API ключ: ',
   redmine_list: 'Адрес сервера: ',
   rel_blocked: 'Блокируется',
@@ -103,6 +108,7 @@ export default {
   tooltip_full: 'Полностью',
   tooltip_limit: 'Символов в тултипе: ',
   trackers_list: 'Трекеры: ',
+  trackers_union_hint: 'Снимите флажок, чтобы выбрать трекеры вручную; в списке только трекеры, включённые в отслеживаемые проекты',
   update: 'Обновить',
   update_interval: 'Интервал обновления: ',
   yes: 'Да'

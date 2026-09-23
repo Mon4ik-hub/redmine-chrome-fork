@@ -94,6 +94,27 @@ class Background {
       this.options.issues = ['assigned_to_id']
     }
 
+    // Filters saved before they existed default to "track everything";
+    // an empty selection also falls back to no filter so the extension
+    // never goes fully silent by accident
+    this.options.allProjects = this.options.allProjects !== false
+    this.options.allTrackers = this.options.allTrackers !== false
+
+    if (!Array.isArray(this.options.projects)) {
+      this.options.projects = []
+    }
+    if (!Array.isArray(this.options.trackers)) {
+      this.options.trackers = []
+    }
+    if (!this.options.allProjects && !this.options.projects.length) {
+      console.warn('No projects selected, monitoring all available projects')
+      this.options.allProjects = true
+    }
+    if (!this.options.allTrackers && !this.options.trackers.length) {
+      console.warn('No trackers selected, monitoring all trackers')
+      this.options.allTrackers = true
+    }
+
     // Ensure interval is valid (between 1 and 30 minutes)
     if (!this.options.interval || this.options.interval < 1 || this.options.interval > 30) {
       console.warn('Invalid options.interval, defaulting to 5 minutes')
@@ -155,9 +176,15 @@ class Background {
         [role]: 'me'
       }
 
-      // this.setQuery(query, 'project_id', this.options.projects)
+      // Empty project/tracker selections mean "no filter": the master
+      // checkboxes in the options, or a hand-edited storage
+      if (!this.options.allProjects && this.options.projects?.length) {
+        this.setQuery(query, 'project_id', this.options.projects)
+      }
       this.setQuery(query, 'status_id', this.options.status)
-      this.setQuery(query, 'tracker_id', this.options.trackers)
+      if (!this.options.allTrackers && this.options.trackers?.length) {
+        this.setQuery(query, 'tracker_id', this.options.trackers)
+      }
 
       if (!this.data[role]) {
         this.data[role] = {}
