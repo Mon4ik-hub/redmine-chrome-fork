@@ -47,7 +47,7 @@ export default {
   language: 'Выберите язык: ',
   last_change: 'Последнее изменение',
   loading_change: 'Загрузка…',
-  mark_all_read: 'Пометить все как прочтенные',
+  mark_all_read: 'Пометить все как прочитанные',
   minutes_1: '1 минут',
   minutes_5: '5 минут',
   minutes_10: '10 минут',
