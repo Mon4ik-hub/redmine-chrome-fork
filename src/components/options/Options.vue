@@ -78,6 +78,7 @@
         :data="trackerOptions"
         :disabled="options.allTrackers"
         multiple
+        @change="trackersAuto = false"
       />
     </FormGroup>
 
@@ -359,14 +360,21 @@ const trackerOptions = computed(() => {
     it.projectIds.some(id => scope.has(id)))
 })
 
-// Recompute the manual selection against the current union: keep the
-// picks that survive, refill from the union when none do. An empty
-// union means no project is picked yet — leave the picks alone so
-// switching projects doesn't wipe them
+// Until the user edits the tracker selection by hand, it mirrors the
+// monitored union — growing and shrinking with the picked projects;
+// a hand edit turns it into a fixed pick set that only loses trackers
+// which fall out of the union (a fully emptied one refills, so the
+// manual mode never ends up blocked)
+let trackersAuto = true
+
 const applyTrackerScope = () => {
   const available = trackerOptions.value.map(it => it.value)
 
   if (!available.length) {
+    return
+  }
+  if (trackersAuto) {
+    options.value.trackers = available
     return
   }
   const availableSet = new Set(available)
@@ -389,6 +397,7 @@ watch(() => options.value.allTrackers, all => {
   if (all) {
     options.value.trackers = []
   } else {
+    trackersAuto = true
     applyTrackerScope()
   }
 })
@@ -489,12 +498,24 @@ const getData = async savedOptions => {
 
     // Drop saved ids that no longer exist: project or tracker removed,
     // or access to it lost. A saved selection only matters in manual
-    // mode — with the master checkbox on there is nothing to pick
+    // mode — with the master checkbox on there is nothing to pick; a
+    // selection narrower than the union is a hand-made pick set
     options.value.projects = (savedOptions.projects || []).filter(id => nodes.has(id))
     const visibleTrackerIds = new Set(trackerChoices.map(it => it.value))
+    const savedTrackers = (savedOptions.trackers || []).filter(id => visibleTrackerIds.has(id))
 
-    options.value.trackers = options.value.allTrackers ? [] :
-      (savedOptions.trackers || []).filter(id => visibleTrackerIds.has(id))
+    if (options.value.allTrackers) {
+      options.value.trackers = []
+    } else {
+      const available = trackerOptions.value.map(it => it.value)
+      const availableSet = new Set(available)
+      const kept = savedTrackers.filter(id => availableSet.has(id))
+
+      options.value.trackers = kept.length ? kept : available
+      // Nothing hand-picked survives (or everything is picked): let the
+      // selection mirror the union as projects change
+      trackersAuto = kept.length === 0 || kept.length === available.length
+    }
 
     options.value.issues = savedOptions.issues || list.value.issues.map(it => it.value)
 
