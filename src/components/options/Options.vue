@@ -65,11 +65,15 @@
       />
     </FormGroup>
 
-    <FormGroup :label="t('notifications_limit')">
-      <MultipleSelect
+    <FormGroup
+      :label="t('notifications_limit')"
+      :description="t('notifications_limit_hint')"
+    >
+      <FormInput
         v-model="options.notifications_limit"
-        :data="list.notifications_limit"
-        :multiple="false"
+        type="number"
+        min="0"
+        placeholder="0"
       />
     </FormGroup>
 
@@ -232,32 +236,6 @@ const list = ref({
       text: t('tooltip_full')
     }
   ],
-  notifications_limit: [
-    {
-      value: 1,
-      text: '1'
-    },
-    {
-      value: 3,
-      text: '3'
-    },
-    {
-      value: 5,
-      text: '5'
-    },
-    {
-      value: 10,
-      text: '10'
-    },
-    {
-      value: 25,
-      text: '25'
-    },
-    {
-      value: 0,
-      text: t('limit_all')
-    }
-  ],
   notify_status: []
 })
 const selects = [
@@ -369,6 +347,10 @@ const onNext = () => {
   })
 }
 const save = async () => {
+  // The limit is a free-form number input: empty/negative values mean "all"
+  const limit = parseInt(options.value.notifications_limit, 10)
+
+  options.value.notifications_limit = Number.isFinite(limit) && limit > 0 ? limit : 0
   // Keep the full status/tracker name lists so the popup can translate
   // ids into names in the last-change tooltip
   await Utils.setStorage('options', {
