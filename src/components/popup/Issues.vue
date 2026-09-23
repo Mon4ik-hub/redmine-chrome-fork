@@ -343,13 +343,16 @@ onMounted(async () => {
 <style lang="scss" scoped>
 /* Fluent flyout card: white surface with the characteristic 8px corner
    radius, sitting on the neutral gray background of the popup. A flex
-   column capped at the viewport height (minus the 8px padding of
-   .popup-container on each side), so the pivot tabs and the command bar
-   stay pinned while the list below scrolls inside the card */
+   column capped just under Chrome's 600px popup window limit (minus the
+   8px .popup-container padding on each side), so the pivot tabs and the
+   command bar stay pinned while the list below scrolls inside the card.
+   The cap must be a fixed length: the popup window is sized to its
+   content, so a viewport-relative cap (100vh) feeds back into the window
+   size and the popup collapses to a sliver */
 .fluent-popup {
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 16px);
+  max-height: calc(600px - 16px);
   background-color: #ffffff;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
