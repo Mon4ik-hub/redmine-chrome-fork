@@ -147,9 +147,11 @@ export const describeLastChange = async (issueData, options, t) => {
   return journalToNotification(journal, options, maps, t)
 }
 
-// Change notifications of one issue since "sinceMs", newest first.
-// Every journal entry newer than the cutoff is a notification. When the
-// list is empty (the issue is unread but nothing matches, e.g. updated_on
+// Change notifications of one issue since "sinceMs", newest first, capped
+// to options.notifications_limit (0 = all). The full count is returned as
+// "total", so the row badge keeps showing the exact number of unread
+// changes even when the panel shows only the newest ones. When the list is
+// empty (the issue is unread but nothing matches, e.g. updated_on
 // was bumped by a subtask) a single fallback notification is returned,
 // so an unread issue always shows at least one.
 export const getIssueNotifications = async (options, issue, sinceMs, t) => {
@@ -160,14 +162,23 @@ export const getIssueNotifications = async (options, issue, sinceMs, t) => {
     .map(journal => journalToNotification(journal, options, maps, t))
 
   if (notifications.length > 0) {
-    return notifications.reverse()
+    const items = notifications.reverse()
+    const limit = options.notifications_limit ?? 0
+
+    return {
+      items: limit > 0 ? items.slice(0, limit) : items,
+      total: items.length
+    }
   }
 
   const journals = detail.journals || []
 
-  return [{
-    user: journals[journals.length - 1]?.user?.name || detail.author?.name || '',
-    time: detail.updated_on,
-    lines: [{ type: 'info', text: t('issue_updated') }]
-  }]
+  return {
+    items: [{
+      user: journals[journals.length - 1]?.user?.name || detail.author?.name || '',
+      time: detail.updated_on,
+      lines: [{ type: 'info', text: t('issue_updated') }]
+    }],
+    total: 1
+  }
 }

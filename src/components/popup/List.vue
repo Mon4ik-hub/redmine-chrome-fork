@@ -78,7 +78,7 @@
           @click.stop="toggleExpand(issue)"
         >
           <template v-if="notifState[issue.id].status === 'ready'">
-            {{ notifState[issue.id].items.length }}
+            {{ notifState[issue.id].total ?? notifState[issue.id].items.length }}
           </template>
           <i
             v-else
@@ -114,6 +114,15 @@
               >
                 {{ line.text }}
               </div>
+            </div>
+            <div
+              v-if="hiddenCount(notifState[issue.id]) > 0"
+              class="notification-more"
+            >
+              {{ t('more_changes', {
+                shown: notifState[issue.id]?.items.length,
+                total: notifState[issue.id]?.total
+              }) }}
             </div>
           </div>
         </div>
@@ -278,13 +287,22 @@ const loadIssueNotifications = async issue => {
   }
   notifState.value[issue.id] = { status: 'loading', items: [] }
   try {
-    const items = await getIssueNotifications(options.value, issue, cutoffFor(issue), t)
+    const { items, total } = await getIssueNotifications(options.value, issue, cutoffFor(issue), t)
 
-    notifState.value[issue.id] = { status: 'ready', items }
+    notifState.value[issue.id] = { status: 'ready', items, total }
   } catch (error) {
     console.error('Failed to load issue notifications:', error)
     notifState.value[issue.id] = { status: 'error', items: [] }
   }
+}
+
+// How many unread changes stay hidden because of the notifications_limit
+// option (the row badge still counts them all)
+const hiddenCount = state => {
+  if (state?.status !== 'ready') {
+    return 0
+  }
+  return (state.total ?? state.items.length) - state.items.length
 }
 
 // Prefetch the counts for unread issues, a few requests at a time; the
@@ -850,6 +868,14 @@ onBeforeUnmount(() => {
 .notification-line {
   font-size: 12px;
   word-break: break-word;
+}
+
+/* Footer of the panel when notifications_limit trims the list: how many
+   older changes exist beyond the displayed newest ones */
+.notification-more {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #797775;
 }
 
 /* Floating "last change" tooltip: no heavy border — a hairline outline and

@@ -65,6 +65,14 @@
       />
     </FormGroup>
 
+    <FormGroup :label="t('notifications_limit')">
+      <MultipleSelect
+        v-model="options.notifications_limit"
+        :data="list.notifications_limit"
+        :multiple="false"
+      />
+    </FormGroup>
+
     <FormGroup :label="t('status_colors')">
       <div class="status-colors">
         <div
@@ -148,6 +156,9 @@ const options = ref({
   interval: 10,
   tooltip_limit: 200,
   group_notifications: false,
+  // Max journal entries shown in an expanded task's notification panel;
+  // 0 keeps the full list
+  notifications_limit: 0,
   // User-picked status badge colors, { [statusId]: '#rrggbb' }; statuses
   // without an entry keep their automatic color
   statusColors: {},
@@ -219,6 +230,32 @@ const list = ref({
     {
       value: 0,
       text: t('tooltip_full')
+    }
+  ],
+  notifications_limit: [
+    {
+      value: 1,
+      text: '1'
+    },
+    {
+      value: 3,
+      text: '3'
+    },
+    {
+      value: 5,
+      text: '5'
+    },
+    {
+      value: 10,
+      text: '10'
+    },
+    {
+      value: 25,
+      text: '25'
+    },
+    {
+      value: 0,
+      text: t('limit_all')
     }
   ],
   notify_status: []
@@ -309,6 +346,8 @@ const getData = async savedOptions => {
     options.value.interval = savedOptions.interval || options.value.interval
     // 0 means "no truncation", so the fallback must not treat it as empty
     options.value.tooltip_limit = savedOptions.tooltip_limit ?? options.value.tooltip_limit
+    // 0 means "show all", so the fallback must not treat it as empty either
+    options.value.notifications_limit = savedOptions.notifications_limit ?? options.value.notifications_limit
     options.value.group_notifications = savedOptions.group_notifications ?? options.value.group_notifications
     options.value.statusColors = savedOptions.statusColors || {}
     options.value.notify = savedOptions.notify || options.value.notify
