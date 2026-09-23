@@ -83,6 +83,14 @@ const attrLabel = (name, t) => {
   return label === key ? name : label
 }
 
+// Same lookup for journal detail names of other properties (relation types)
+const propLabel = (prefix, name, t) => {
+  const key = `${prefix}${name}`
+  const label = t(key)
+
+  return label === key ? name : label
+}
+
 // Priorities are global; a lazy id → name map fetched once per popup session
 let priorityMap = null
 
@@ -155,6 +163,21 @@ const getProjectName = (options, projectId) => {
   return projectNameCache.get(projectId)
 }
 
+// Relations in journal details reference the other issue by bare id; its
+// subject is fetched (and cached) so "copied_to 31" can become a readable line
+const issueTitleCache = new Map()
+
+const getIssueTitle = (options, issueId) => {
+  if (!issueTitleCache.has(issueId)) {
+    const load = Utils.getAPI(options, `issues/${issueId}`)
+      .then(res => (res.issue || res).subject)
+      .catch(() => undefined)
+
+    issueTitleCache.set(issueId, load)
+  }
+  return issueTitleCache.get(issueId)
+}
+
 // Custom field names ("cf_12" → "Модуль") are already on the issue itself
 const toCfMap = issueData => {
   const map = {}
@@ -178,6 +201,7 @@ const getContextMaps = async (options, issueData, journals) => {
     versions: {},
     categories: {},
     projects: {},
+    issues: {},
     cf: toCfMap(issueData)
   }
 
@@ -190,6 +214,7 @@ const getContextMaps = async (options, issueData, journals) => {
 
   const attrNames = new Set()
   const projectIds = new Set()
+  const relationIds = new Set()
 
   for (const journal of journals || []) {
     for (const detail of journal.details || []) {
@@ -198,6 +223,13 @@ const getContextMaps = async (options, issueData, journals) => {
         for (const value of [detail.old_value, detail.new_value]) {
           if (value) {
             projectIds.add(value)
+          }
+        }
+      }
+      if (detail.property === 'relation') {
+        for (const value of [detail.old_value, detail.new_value]) {
+          if (value) {
+            relationIds.add(value)
           }
         }
       }
@@ -226,6 +258,13 @@ const getContextMaps = async (options, issueData, journals) => {
     jobs.push(getProjectName(options, id).then(name => {
       if (name) {
         maps.projects[id] = name
+      }
+    }))
+  }
+  for (const id of relationIds) {
+    jobs.push(getIssueTitle(options, id).then(title => {
+      if (title) {
+        maps.issues[id] = title
       }
     }))
   }
@@ -272,9 +311,14 @@ const describeDetail = (detail, maps, t) => {
     return { label: t('attachment_added'), value: newValue || name }
   }
   if (property === 'relation') {
+    // The value is the other issue's id; the line reads like Redmine's own
+    // history ("Скопировано в: #31 Собрать программу онбординга")
+    const ref = newValue || oldValue
+    const title = maps.issues?.[ref]
+
     return {
-      label: t('relation_changed'),
-      value: `${name} ${oldValue || ''} → ${newValue || ''}`.replace(/\s+/g, ' ').trim()
+      label: propLabel('rel_', name, t),
+      value: ref ? title ? `#${ref} ${title}` : `#${ref}` : ''
     }
   }
 
