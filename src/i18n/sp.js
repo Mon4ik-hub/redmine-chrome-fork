@@ -17,6 +17,7 @@ export default {
   attr_subject: 'Tema',
   attr_tracker_id: 'Tipo',
   author: 'Autor: ',
+  changed: 'cambiado',
   chinese: 'Chino',
   clear_filter: 'Limpiar filtro',
   comment: 'Comentario',
@@ -55,6 +56,7 @@ export default {
   minutes_30: '30 minutos',
   more_changes: 'Mostrando los últimos {shown} de {total}',
   move_to_folder: 'Mover a la carpeta…',
+  no: 'No',
   no_folders: 'Aún no hay carpetas: cree la primera arriba.',
   no_folders_short: 'Sin carpetas',
   notifications_limit: 'Cambios máximos por tarea: ',
@@ -94,5 +96,6 @@ export default {
   tooltip_limit: 'Caracteres en el tooltip: ',
   trackers_list: 'Rastreadores',
   update: 'Actualizar',
-  update_interval: 'Actualizar intervalo: '
+  update_interval: 'Actualizar intervalo: ',
+  yes: 'Sí'
 }

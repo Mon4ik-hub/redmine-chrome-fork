@@ -17,6 +17,7 @@ export default {
   attr_subject: 'Subject',
   attr_tracker_id: 'Tracker',
   author: 'Author: ',
+  changed: 'changed',
   chinese: 'Chinese',
   clear_filter: 'Clear filter',
   comment: 'Comment',
@@ -55,6 +56,7 @@ export default {
   minutes_30: '30 minutes',
   more_changes: 'Showing latest {shown} of {total}',
   move_to_folder: 'Move to folder…',
+  no: 'No',
   no_folders: 'No folders yet — create the first one above.',
   no_folders_short: 'No folders',
   notifications_limit: 'Max changes per task: ',
@@ -94,5 +96,6 @@ export default {
   tooltip_limit: 'Symbols in tooltip: ',
   trackers_list: 'Trackers list: ',
   update: 'Update',
-  update_interval: 'Update interval: '
+  update_interval: 'Update interval: ',
+  yes: 'Yes'
 }

@@ -17,6 +17,7 @@ export default {
   attr_subject: 'Тема',
   attr_tracker_id: 'Трекер',
   author: 'Автор: ',
+  changed: 'изменено',
   chinese: 'Chinese',
   clear_filter: 'Очистить фильтр',
   comment: 'Комментарий',
@@ -55,6 +56,7 @@ export default {
   minutes_30: '30 минут',
   more_changes: 'Показаны последние {shown} из {total}',
   move_to_folder: 'Переместить в папку…',
+  no: 'Нет',
   no_folders: 'Папок пока нет — создайте первую сверху.',
   no_folders_short: 'Нет папок',
   notifications_limit: 'Максимум изменений в списке: ',
@@ -94,5 +96,6 @@ export default {
   tooltip_limit: 'Символов в тултипе: ',
   trackers_list: 'Трекеры: ',
   update: 'Обновить',
-  update_interval: 'Интервал обновления: '
+  update_interval: 'Интервал обновления: ',
+  yes: 'Да'
 }

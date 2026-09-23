@@ -17,6 +17,7 @@ export default {
   attr_subject: '題名',
   attr_tracker_id: 'トラッカー',
   author: '作成者：',
+  changed: '変更',
   chinese: '中国語',
   clear_filter: 'フィルターをクリア',
   comment: 'コメント',
@@ -55,6 +56,7 @@ export default {
   minutes_30: '30分',
   more_changes: '最新 {shown} / 全 {total} 件を表示',
   move_to_folder: 'フォルダーへ移動…',
+  no: 'いいえ',
   no_folders: 'フォルダーがありません。上で作成してください。',
   no_folders_short: 'フォルダーなし',
   notifications_limit: 'タスクごとの最大変更表示数：',
@@ -94,5 +96,6 @@ export default {
   tooltip_limit: 'ツールチップの文字数：',
   trackers_list: 'トラッカー：',
   update: '更新',
-  update_interval: '更新間隔：'
+  update_interval: '更新間隔：',
+  yes: 'はい'
 }

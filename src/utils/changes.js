@@ -22,6 +22,18 @@ const toNameMap = list => {
   return map
 }
 
+// Same, for API lists that come as { id, name } (versions, categories, …)
+const toIdNameMap = list => {
+  const map = {}
+
+  for (const item of list || []) {
+    if (item && item.id !== undefined && item.name) {
+      map[item.id] = item.name
+    }
+  }
+  return map
+}
+
 export const getIssueDetail = async (options, issue) => {
   const cacheKey = `${issue.id}:${issue.updated_on || ''}`
 
@@ -71,18 +83,181 @@ const attrLabel = (name, t) => {
   return label === key ? name : label
 }
 
-const formatValue = (name, value, maps) => {
+// Priorities are global; a lazy id → name map fetched once per popup session
+let priorityMap = null
+
+const getPriorityMap = async options => {
+  if (!priorityMap) {
+    const res = await Utils.getAPI(options, 'enumerations/issue_priorities').catch(() => {})
+
+    priorityMap = toIdNameMap(res.issue_priorities)
+  }
+  return priorityMap
+}
+
+// The API reports assignee / version / category changes as raw ids. Assignees
+// must be project members, so the project's memberships give their names
+// (works for non-admins, unlike /users). Groups may also be assignees —
+// memberships return them in the "group" node.
+const fetchMemberships = async (options, projectId) => {
+  const users = {}
+
+  for (let offset = 0; offset < 500; offset += 100) {
+    const res = await Utils.getAPI(options, `projects/${projectId}/memberships`, { limit: 100, offset }).catch(() => null)
+    const chunk = res?.memberships || []
+
+    for (const member of chunk) {
+      const principal = member.user || member.group
+
+      if (principal?.id !== undefined && principal.name) {
+        users[principal.id] = principal.name
+      }
+    }
+    if (chunk.length < 100) {
+      break
+    }
+  }
+  return users
+}
+
+// Per-project id → name maps, loaded once per popup session. The promise is
+// cached, so concurrent issues on the same project share one request.
+const projectMaps = new Map()
+
+const getProjectMaps = (options, projectId) => {
+  if (!projectMaps.has(projectId)) {
+    const load = Promise.all([
+      fetchMemberships(options, projectId),
+      Utils.getAPI(options, `projects/${projectId}/versions`).catch(() => {}),
+      Utils.getAPI(options, `projects/${projectId}/issue_categories`).catch(() => {})
+    ]).then(([users, versions, categories]) => ({
+      users,
+      versions: toIdNameMap(versions.versions),
+      categories: toIdNameMap(categories.issue_categories)
+    })).catch(() => ({ users: {}, versions: {}, categories: {} }))
+
+    projectMaps.set(projectId, load)
+  }
+  return projectMaps.get(projectId)
+}
+
+// Renaming a project is rare: resolve the id with a single issue-scoped fetch
+const projectNameCache = new Map()
+
+const getProjectName = (options, projectId) => {
+  if (!projectNameCache.has(projectId)) {
+    const load = Utils.getAPI(options, `projects/${projectId}`)
+      .then(res => res.project?.name)
+      .catch(() => undefined)
+
+    projectNameCache.set(projectId, load)
+  }
+  return projectNameCache.get(projectId)
+}
+
+// Custom field names ("cf_12" → "Модуль") are already on the issue itself
+const toCfMap = issueData => {
+  const map = {}
+
+  for (const cf of issueData.custom_fields || []) {
+    if (cf?.id !== undefined && cf.name) {
+      map[cf.id] = cf.name
+    }
+  }
+  return map
+}
+
+// id → name maps for the journals of one issue: the shared status/tracker
+// maps plus lazy per-context maps for the attributes Redmine reports as raw
+// ids. Only the kinds actually present in the journals are fetched.
+const getContextMaps = async (options, issueData, journals) => {
+  const base = await getNameMaps(options)
+  const maps = {
+    ...base,
+    users: {},
+    versions: {},
+    categories: {},
+    projects: {},
+    cf: toCfMap(issueData)
+  }
+
+  if (issueData.assigned_to?.id !== undefined) {
+    maps.users[issueData.assigned_to.id] = issueData.assigned_to.name
+  }
+  if (issueData.author?.id !== undefined) {
+    maps.users[issueData.author.id] = issueData.author.name
+  }
+
+  const attrNames = new Set()
+  const projectIds = new Set()
+
+  for (const journal of journals || []) {
+    for (const detail of journal.details || []) {
+      attrNames.add(detail.name)
+      if (detail.name === 'project_id') {
+        for (const value of [detail.old_value, detail.new_value]) {
+          if (value) {
+            projectIds.add(value)
+          }
+        }
+      }
+    }
+  }
+
+  const jobs = []
+
+  if (attrNames.has('priority_id')) {
+    jobs.push(getPriorityMap(options).then(map => {
+      maps.priority = map
+    }))
+  }
+  if (attrNames.has('assigned_to_id') || attrNames.has('fixed_version_id') || attrNames.has('category_id')) {
+    const projectId = issueData.project?.id
+
+    if (projectId !== undefined) {
+      jobs.push(getProjectMaps(options, projectId).then(project => {
+        maps.users = { ...project.users, ...maps.users }
+        maps.versions = project.versions
+        maps.categories = project.categories
+      }))
+    }
+  }
+  for (const id of projectIds) {
+    jobs.push(getProjectName(options, id).then(name => {
+      if (name) {
+        maps.projects[id] = name
+      }
+    }))
+  }
+
+  await Promise.all(jobs)
+  return maps
+}
+
+const formatValue = (name, value, maps, t) => {
   if (value === undefined || value === null || value === '') {
     return ''
   }
 
-  const mapKey = { status_id: 'status', tracker_id: 'tracker' }[name]
-
-  if (mapKey && maps[mapKey][value] !== undefined) {
-    return maps[mapKey][value]
+  if (name === 'is_private') {
+    return value === 'true' || value === true ? t('yes') : t('no')
   }
   if (name === 'done_ratio') {
     return `${value}%`
+  }
+
+  const mapKey = {
+    status_id: 'status',
+    tracker_id: 'tracker',
+    priority_id: 'priority',
+    assigned_to_id: 'users',
+    fixed_version_id: 'versions',
+    category_id: 'categories',
+    project_id: 'projects'
+  }[name]
+
+  if (mapKey && maps[mapKey]?.[value] !== undefined) {
+    return maps[mapKey][value]
   }
   return String(value)
 }
@@ -103,9 +278,17 @@ const describeDetail = (detail, maps, t) => {
     }
   }
 
-  const label = property === 'cf' ? `${t('custom_field')} ${name}` : attrLabel(name, t)
-  const oldText = formatValue(name, oldValue, maps)
-  const newText = formatValue(name, newValue, maps)
+  // Old and new descriptions are full texts — far too long for a line,
+  // so the change is collapsed like in the Redmine UI
+  if (property === 'attr' && name === 'description') {
+    return { label: attrLabel(name, t), value: t('changed') }
+  }
+
+  const label = property === 'cf' ?
+    maps.cf?.[name] || `${t('custom_field')} ${name}` :
+    attrLabel(name, t)
+  const oldText = formatValue(name, oldValue, maps, t)
+  const newText = formatValue(name, newValue, maps, t)
 
   return { label, value: oldText && newText ? `${oldText} → ${newText}` : newText || oldText }
 }
@@ -149,7 +332,7 @@ export const describeLastChange = async (issueData, options, t) => {
     }
   }
 
-  const maps = await getNameMaps(options)
+  const maps = await getContextMaps(options, issueData, [journal])
 
   return journalToNotification(journal, options, maps, t)
 }
@@ -164,9 +347,10 @@ export const describeLastChange = async (issueData, options, t) => {
 // so an unread issue always shows at least one.
 export const getIssueNotifications = async (options, issue, sinceMs, t) => {
   const detail = await getIssueDetail(options, issue)
-  const maps = await getNameMaps(options)
-  const items = (detail.journals || [])
+  const relevant = (detail.journals || [])
     .filter(journal => new Date(journal.created_on).getTime() > sinceMs)
+  const maps = await getContextMaps(options, detail, relevant)
+  const items = relevant
     .map(journal => journalToNotification(journal, options, maps, t))
 
   if (items.length > 0) {

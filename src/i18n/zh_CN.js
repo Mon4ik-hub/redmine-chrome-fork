@@ -17,6 +17,7 @@ export default {
   attr_subject: '主题',
   attr_tracker_id: '跟踪类型',
   author: '作者：',
+  changed: '已变更',
   chinese: '简体中文',
   clear_filter: '清除过滤',
   comment: '评论',
@@ -55,6 +56,7 @@ export default {
   minutes_30: '30分钟',
   more_changes: '显示最新 {shown} / 共 {total} 条',
   move_to_folder: '移动到文件夹…',
+  no: '否',
   no_folders: '还没有文件夹——请在上方创建第一个。',
   no_folders_short: '无文件夹',
   notifications_limit: '每任务最多显示变更数：',
@@ -94,5 +96,6 @@ export default {
   tooltip_limit: '工具提示字数：',
   trackers_list: '跟踪列表：',
   update: '更新',
-  update_interval: '更新间隔：'
+  update_interval: '更新间隔：',
+  yes: '是'
 }
