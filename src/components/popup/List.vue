@@ -281,6 +281,15 @@ const isGrouped = computed(() => options.value.group_notifications === true)
 const notifState = ref({})
 const expanded = ref({})
 
+// Options are loaded in onMounted; notification requests must not start
+// with an empty options object before that — it once defeated the
+// notifications_limit option on first popup open
+const optionsReady = ref(false)
+let resolveOptionsReady
+const optionsReadyPromise = new Promise(resolve => {
+  resolveOptionsReady = resolve
+})
+
 const MAX_INITIAL_LOAD = 30
 const LOAD_CONCURRENCY = 4
 
@@ -293,17 +302,36 @@ const cutoffFor = issue => {
 }
 
 const loadIssueNotifications = async issue => {
-  if (notifState.value[issue.id]) {
+  // Expanding a row can happen before onMounted finishes; wait for the
+  // options instead of requesting with the defaults
+  if (!optionsReady.value) {
+    await optionsReadyPromise
+  }
+
+  const existing = notifState.value[issue.id]
+
+  // A load for the same version of the issue is already done or running
+  if (existing && existing.updatedOn === issue.updated_on &&
+      (existing.status === 'ready' || existing.status === 'loading')) {
     return
   }
-  notifState.value[issue.id] = { status: 'loading', items: [] }
+
+  // The spinner shows only when nothing is known about the issue yet; a
+  // refetch of an updated one keeps the previous numbers visible until the
+  // fresh list arrives
+  if (!existing || existing.status !== 'ready') {
+    notifState.value[issue.id] = { status: 'loading', items: [], updatedOn: issue.updated_on }
+  }
   try {
     const { items, total } = await getIssueNotifications(options.value, issue, cutoffFor(issue), t)
 
-    notifState.value[issue.id] = { status: 'ready', items, total }
+    notifState.value[issue.id] = { status: 'ready', items, total, updatedOn: issue.updated_on }
   } catch (error) {
     console.error('Failed to load issue notifications:', error)
-    notifState.value[issue.id] = { status: 'error', items: [] }
+    // Keep the stale data on a refetch failure; only a first-time load fails visibly
+    if (!existing || existing.status !== 'ready') {
+      notifState.value[issue.id] = { status: 'error', items: [], updatedOn: issue.updated_on }
+    }
   }
 }
 
@@ -338,8 +366,8 @@ const unreadSignature = computed(() => props.sortedIssues
   .map(issue => `${issue.id}:${issue.updated_on}:${cutoffFor(issue)}`)
   .join('|'))
 
-watch(() => [isGrouped.value, unreadSignature.value], ([grouped]) => {
-  if (grouped) {
+watch(() => [isGrouped.value, optionsReady.value ? unreadSignature.value : ''], ([grouped]) => {
+  if (grouped && optionsReady.value) {
     loadUnreadNotifications()
   }
 }, { immediate: true })
@@ -608,6 +636,8 @@ const onViewportScroll = () => {
 
 onMounted(async () => {
   options.value = await Utils.getStorage('options') || {}
+  optionsReady.value = true
+  resolveOptionsReady()
   window.addEventListener('scroll', onViewportScroll, true)
 })
 

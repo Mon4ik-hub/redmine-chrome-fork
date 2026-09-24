@@ -5,6 +5,87 @@ import Utils from '@/utils'
 const detailCache = new Map()
 let nameMaps = null
 
+// "include=journals" returns EVERY journal of an issue — on production
+// servers well over a hundred per task — so re-fetching them on every popup
+// open kept the unread counters spinning for a long time. A compact copy of
+// each issue is therefore kept in chrome.storage.local and reused while its
+// "updated_on" stamp is unchanged. Long texts are capped so the cache (with
+// no unlimitedStorage permission) stays well under the storage quota.
+const JOURNAL_CACHE_KEY = 'journal_cache'
+const MAX_CACHED_ISSUES = 40
+const NOTES_CAP = 10000
+const DESCRIPTION_CAP = 50000
+
+const capText = (text, limit) => {
+  if (typeof text === 'string' && text.length > limit) {
+    return text.slice(0, limit)
+  }
+  return text
+}
+
+const toCacheEntry = issueData => ({
+  updated_on: issueData.updated_on,
+  issue: {
+    updated_on: issueData.updated_on,
+    created_on: issueData.created_on,
+    author: issueData.author,
+    assigned_to: issueData.assigned_to,
+    project: issueData.project,
+    custom_fields: issueData.custom_fields,
+    description: capText(issueData.description, DESCRIPTION_CAP),
+    journals: (issueData.journals || []).map(journal => ({
+      user: journal.user ? { name: journal.user.name } : undefined,
+      created_on: journal.created_on,
+      notes: capText(journal.notes, NOTES_CAP),
+      details: journal.details
+    }))
+  }
+})
+
+// The whole cache is read once per popup session; writes are batched with a
+// short delay, so prefetching a page of issues results in one storage.set
+const journalCache = new Map()
+const journalCachePromise = new Promise(resolve => {
+  Utils.getStorage(JOURNAL_CACHE_KEY)
+    .catch(() => null)
+    .then(stored => {
+      for (const [id, entry] of Object.entries(stored || {})) {
+        if (entry?.updated_on && entry.issue) {
+          journalCache.set(Number(id), entry)
+        }
+      }
+      resolve()
+    })
+})
+let journalCacheFlushTimer = null
+
+const flushJournalCache = async () => {
+  journalCacheFlushTimer = null
+
+  if (journalCache.size > MAX_CACHED_ISSUES) {
+    const byAge = [...journalCache.entries()]
+      .sort(([, a], [, b]) => String(b.updated_on).localeCompare(String(a.updated_on)))
+
+    for (const [id] of byAge.slice(MAX_CACHED_ISSUES)) {
+      journalCache.delete(id)
+    }
+  }
+
+  try {
+    await Utils.setStorage(JOURNAL_CACHE_KEY, Object.fromEntries(journalCache))
+  } catch {
+    // A full quota or a missing storage area only costs the speedup
+  }
+}
+
+const rememberIssue = issueData => {
+  journalCache.set(issueData.id, toCacheEntry(issueData))
+
+  if (!journalCacheFlushTimer) {
+    journalCacheFlushTimer = setTimeout(flushJournalCache, 500)
+  }
+}
+
 // Truncate the comment preview; limit 0 (configured as "full") keeps the text
 const truncate = (text, limit) => {
   if (!limit) {
@@ -41,10 +122,20 @@ export const getIssueDetail = async (options, issue) => {
     return detailCache.get(cacheKey)
   }
 
+  // Reuse the persistent copy while the issue has not been updated
+  await journalCachePromise
+  const entry = journalCache.get(issue.id)
+
+  if (entry && entry.updated_on === issue.updated_on) {
+    detailCache.set(cacheKey, entry.issue)
+    return entry.issue
+  }
+
   const data = await Utils.getAPI(options, `issues/${issue.id}`, { include: 'journals' })
   const result = data.issue || data
 
   detailCache.set(cacheKey, result)
+  rememberIssue(result)
   return result
 }
 
