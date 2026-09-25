@@ -520,7 +520,7 @@ const getData = async savedOptions => {
     options.value.notifications_limit = savedOptions.notifications_limit ?? options.value.notifications_limit
     options.value.group_notifications = savedOptions.group_notifications ?? options.value.group_notifications
     options.value.statusColors = savedOptions.statusColors || {}
-    options.value.notify = savedOptions.notify || options.value.notify
+    options.value.notify = savedOptions.notify ?? options.value.notify
 
     list.value.notify_status = list.value.status
     options.value.notify_status = savedOptions.notify_status || [list.value.notify_status[0].value]
