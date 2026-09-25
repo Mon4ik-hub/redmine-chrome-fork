@@ -241,7 +241,7 @@ import { useI18n } from 'vue-i18n'
 import Utils from '@/utils'
 import StatusBadge from '@/components/popup/StatusBadge.vue'
 import { trackerColor } from '@/utils/statusColors'
-import { describeLastChange, getIssueDetail, getIssueNotifications } from '@/utils/changes'
+import { describeLastChange, getIssueDetail, getIssueNotifications, getTooltipEntry, renderRawLastChange } from '@/utils/changes'
 import {
   getFoldersData,
   moveIssueToFolder,
@@ -439,6 +439,25 @@ const showTooltip = async (issue, row) => {
     change: null
   }
   try {
+    // A stub rendered earlier (any full journal render, in this or a
+    // previous popup session) shows instantly, with no name maps and no
+    // requests; a raw stub from a background cache eviction renders lazily
+    const cached = await getTooltipEntry(issue.id)
+
+    if (hoveredIssue !== issue) {
+      return
+    }
+    if (cached && cached.updated_on === issue.updated_on) {
+      tooltip.value.change = cached.lastChange ||
+        renderRawLastChange(cached.journal, options.value, t)
+      tooltip.value.loading = false
+      await nextTick()
+      positionTooltip(row)
+      return
+    }
+
+    // Cold path: fetch (or take from journal_cache) and render; this also
+    // refills both caches for the next time
     const detail = await getIssueDetail(options.value, issue)
 
     if (hoveredIssue !== issue) {

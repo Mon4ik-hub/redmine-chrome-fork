@@ -92,19 +92,27 @@ export const trackerColor = name => {
 
 let closedStatusIdsPromise = null
 
-// Ids of the statuses this Redmine marks as closed. issue_statuses.json
-// carries the is_closed flag for custom statuses too; fetched once per
-// popup session and cached, so all badges share one request.
+// Ids of the statuses this Redmine marks as closed. The saved options
+// already carry the full status list with the is_closed flags (same source
+// as the popup's name maps); fetching is only the fallback for options
+// saved before the list was stored. Cached once per popup session, so all
+// badges share one lookup
 export const getClosedStatusIds = options => {
   if (!closedStatusIdsPromise) {
-    closedStatusIdsPromise = Utils.getAPI(options, 'issue_statuses')
-      .then(statuses => new Set((statuses || [])
-        .filter(status => status.is_closed)
-        .map(status => status.id)))
-      .catch(error => {
-        console.error('Failed to load issue statuses:', error)
-        return new Set()
-      })
+    if (Array.isArray(options.statusList) && options.statusList.length) {
+      closedStatusIdsPromise = Promise.resolve(new Set(options.statusList
+        .filter(it => it?.isClosed)
+        .map(it => it.value)))
+    } else {
+      closedStatusIdsPromise = Utils.getAPI(options, 'issue_statuses')
+        .then(statuses => new Set((statuses || [])
+          .filter(status => status.is_closed)
+          .map(status => status.id)))
+        .catch(error => {
+          console.error('Failed to load issue statuses:', error)
+          return new Set()
+        })
+    }
   }
   return closedStatusIdsPromise
 }

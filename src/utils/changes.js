@@ -26,6 +26,7 @@ const capText = (text, limit) => {
 const toCacheEntry = issueData => ({
   updated_on: issueData.updated_on,
   issue: {
+    id: issueData.id,
     updated_on: issueData.updated_on,
     created_on: issueData.created_on,
     author: issueData.author,
@@ -59,6 +60,65 @@ const journalCachePromise = new Promise(resolve => {
 })
 let journalCacheFlushTimer = null
 
+// Rendered "last change" stubs for the instant hover tooltip, kept apart
+// from journal_cache on purpose: the tooltip needs hundreds of tiny stubs
+// (one per ever-seen issue, ~hundreds of bytes each) while the counters
+// need few but full journals. An entry is { updated_on, lastChange } with
+// lastChange already rendered ({ user, time, lines }) — ready to show with
+// no name maps and no requests; when rendering was impossible (journal
+// eviction in the background, where there is no i18n), the raw last
+// journal is stored instead and the popup renders it lazily on hover
+const TOOLTIP_CACHE_KEY = 'tooltip_cache'
+const MAX_TOOLTIP_ENTRIES = 300
+
+const tooltipCache = new Map()
+const tooltipCachePromise = new Promise(resolve => {
+  Utils.getStorage(TOOLTIP_CACHE_KEY)
+    .catch(() => null)
+    .then(stored => {
+      for (const [id, entry] of Object.entries(stored || {})) {
+        if (entry?.updated_on && (entry.lastChange || entry.journal)) {
+          tooltipCache.set(Number(id), entry)
+        }
+      }
+      resolve()
+    })
+})
+let tooltipCacheFlushTimer = null
+
+const flushTooltipCache = async () => {
+  clearTimeout(tooltipCacheFlushTimer)
+  tooltipCacheFlushTimer = null
+
+  if (tooltipCache.size > MAX_TOOLTIP_ENTRIES) {
+    const byAge = [...tooltipCache.entries()]
+      .sort(([, a], [, b]) => String(b.updated_on).localeCompare(String(a.updated_on)))
+
+    for (const [id] of byAge.slice(MAX_TOOLTIP_ENTRIES)) {
+      tooltipCache.delete(id)
+    }
+  }
+
+  try {
+    await Utils.setStorage(TOOLTIP_CACHE_KEY, Object.fromEntries(tooltipCache))
+  } catch {
+    // Losing the warm tooltips only costs the instant hover
+  }
+}
+
+const rememberTooltip = (issueId, entry) => {
+  tooltipCache.set(issueId, entry)
+
+  if (!tooltipCacheFlushTimer) {
+    tooltipCacheFlushTimer = setTimeout(flushTooltipCache, 500)
+  }
+}
+
+export const getTooltipEntry = async issueId => {
+  await tooltipCachePromise
+  return tooltipCache.get(Number(issueId))
+}
+
 const flushJournalCache = async () => {
   clearTimeout(journalCacheFlushTimer)
   journalCacheFlushTimer = null
@@ -67,7 +127,16 @@ const flushJournalCache = async () => {
     const byAge = [...journalCache.entries()]
       .sort(([, a], [, b]) => String(b.updated_on).localeCompare(String(a.updated_on)))
 
-    for (const [id] of byAge.slice(MAX_CACHED_ISSUES)) {
+    for (const [id, entry] of byAge.slice(MAX_CACHED_ISSUES)) {
+      // The full journal is dropped, but its last change still deserves an
+      // instant tooltip: keep a raw copy, the popup renders it lazily
+      // (rendering here is impossible — no i18n in this context)
+      const journals = entry.issue?.journals || []
+      const lastJournal = journals[journals.length - 1]
+
+      if (lastJournal) {
+        rememberTooltip(id, { updated_on: entry.updated_on, journal: lastJournal })
+      }
       journalCache.delete(id)
     }
   }
@@ -87,10 +156,11 @@ const rememberIssue = issueData => {
   }
 }
 
-// Persist the cache right away: in the service worker a pending debounce
+// Persist both caches right away: in the service worker a pending debounce
 // may never fire, because the worker can die before it runs
 export const flushCaches = async () => {
   await flushJournalCache()
+  await flushTooltipCache()
 }
 
 // Truncate the comment preview; limit 0 (configured as "full") keeps the text
@@ -465,16 +535,42 @@ const journalToNotification = (journal, options, maps, t) => {
 export const describeLastChange = async (issueData, options, t) => {
   const journals = issueData.journals || []
   const journal = journals[journals.length - 1]
+  let change
 
   if (!journal) {
-    return {
+    change = {
       user: issueData.author?.name || '',
       time: issueData.created_on,
       lines: [{ type: 'info', text: t('issue_created') }]
     }
+  } else {
+    const maps = await getContextMaps(options, issueData, [journal])
+
+    change = journalToNotification(journal, options, maps, t)
   }
 
-  const maps = await getContextMaps(options, issueData, [journal])
+  // The rendered change doubles as the tooltip_cache stub, so the next
+  // hover shows it instantly; old cached entries have no id — skip those
+  if (issueData.id !== undefined) {
+    rememberTooltip(issueData.id, { updated_on: issueData.updated_on, lastChange: change })
+  }
+  return change
+}
+
+// A raw last journal saved by the cache eviction (eviction runs where there
+// is no i18n): render it with what is available locally — statuses and
+// trackers from the saved options; other attributes degrade to raw ids
+export const renderRawLastChange = (journal, options, t) => {
+  const maps = {
+    status: toNameMap(options.statusList),
+    tracker: toNameMap(options.trackerList),
+    users: {},
+    versions: {},
+    categories: {},
+    projects: {},
+    issues: {},
+    cf: {}
+  }
 
   return journalToNotification(journal, options, maps, t)
 }
@@ -489,11 +585,29 @@ export const describeLastChange = async (issueData, options, t) => {
 // so an unread issue always shows at least one.
 export const getIssueNotifications = async (options, issue, sinceMs, t) => {
   const detail = await getIssueDetail(options, issue)
-  const relevant = (detail.journals || [])
+  const journals = detail.journals || []
+  const relevant = journals
     .filter(journal => new Date(journal.created_on).getTime() > sinceMs)
-  const maps = await getContextMaps(options, detail, relevant)
+  // The maps must also cover the newest journal overall (it feeds the
+  // tooltip stub below) even when it is older than the cutoff
+  const lastJournal = journals[journals.length - 1]
+  const maps = await getContextMaps(options, detail,
+    lastJournal && !relevant.includes(lastJournal) ? [...relevant, lastJournal] : relevant)
   const items = relevant
     .map(journal => journalToNotification(journal, options, maps, t))
+
+  // Every full render leaves a ready-made stub for the instant tooltip
+  if (detail.id !== undefined) {
+    const lastChange = lastJournal ?
+      journalToNotification(lastJournal, options, maps, t) :
+      {
+        user: detail.author?.name || '',
+        time: detail.created_on,
+        lines: [{ type: 'info', text: t('issue_created') }]
+      }
+
+    rememberTooltip(detail.id, { updated_on: detail.updated_on, lastChange })
+  }
 
   if (items.length > 0) {
     const limit = options.notifications_limit ?? 0
@@ -504,11 +618,24 @@ export const getIssueNotifications = async (options, issue, sinceMs, t) => {
     }
   }
 
-  const journals = detail.journals || []
+  // Nothing matches the cutoff: an issue with no journal at all was just
+  // created; an older one (updated_on moved without entries, e.g. a
+  // subtask changed) gets the generic "updated" line — the background
+  // auto-reads it within a cycle, so this stub is rarely seen
+  if (!lastJournal) {
+    return {
+      items: [{
+        user: detail.author?.name || '',
+        time: detail.created_on,
+        lines: [{ type: 'info', text: t('issue_created') }]
+      }],
+      total: 1
+    }
+  }
 
   return {
     items: [{
-      user: journals[journals.length - 1]?.user?.name || detail.author?.name || '',
+      user: lastJournal.user?.name || detail.author?.name || '',
       time: detail.updated_on,
       lines: [{ type: 'info', text: t('issue_updated') }]
     }],
