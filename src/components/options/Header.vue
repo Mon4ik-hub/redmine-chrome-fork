@@ -6,7 +6,7 @@
         <span class="version ml5">v{{ version }}</span>
         <a
           class="ml10"
-          href="https://github.com/wenzhixin/redmine-chrome/issues"
+          href="https://github.com/Mon4ik-hub/redmine-chrome-fork/issues"
           target="_blank"
           :title="t('feedback')"
         >
