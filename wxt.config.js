@@ -14,15 +14,6 @@ export default defineConfig({
         128: 'icon-128.png'
       },
       default_title: 'Redmine Notification'
-    },
-    browser_action: {
-      default_icon: {
-        16: 'icon-128.png',
-        32: 'icon-128.png',
-        48: 'icon-128.png',
-        128: 'icon-128.png'
-      },
-      default_title: 'Redmine Notification'
     }
   }),
   srcDir: 'src',
@@ -34,18 +25,5 @@ export default defineConfig({
     eslintrc: {
       enabled: 9
     }
-  },
-  vite: () => ({
-    server: {
-      host: '0.0.0.0',
-      https: false,
-      hotOnly: false,
-      proxy: {
-        '/redmine': {
-          changeOrigin: true,
-          target: 'https://redmine.scutech.com'
-        }
-      }
-    }
-  })
+  }
 })
