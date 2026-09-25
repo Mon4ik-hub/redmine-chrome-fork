@@ -156,6 +156,15 @@ const mergedData = computed(() => {
 
     unreadList.push(...roleData.unreadList || [])
     Object.assign(readAt, roleData.readAt || {})
+    // The role-wide "mark all read" stamp (or the first-connect baseline) is
+    // a valid "last seen" for each of its issues. Without it the merged
+    // lastRead of 0 would make the folders view count a task's whole
+    // journal as unread, ignoring the read state of the role it lives in
+    for (const issue of roleData.issues || []) {
+      if (readAt[issue.id] === undefined) {
+        readAt[issue.id] = roleData.lastRead || 0
+      }
+    }
   }
   return { issues: [], unreadList, readList: [], readAt, lastRead: 0 }
 })
