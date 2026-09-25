@@ -1,5 +1,9 @@
 import i18n from '@/i18n'
-import Utils from '@/utils'
+import Utils, {
+  DEFAULT_POLL_INTERVAL,
+  MAX_POLL_INTERVAL,
+  MIN_POLL_INTERVAL
+} from '@/utils'
 import { describeLastChange, flushCaches, getIssueDetail } from '@/utils/changes'
 import { onMessage } from '@/utils/messaging'
 
@@ -51,7 +55,7 @@ class Background {
   async ensureAlarm () {
     const alarms = await chrome.alarms.getAll()
     const refreshAlarm = alarms.find(alarm => alarm.name === 'refreshAlarm')
-    const interval = this.options?.interval || 5
+    const interval = this.options?.interval || DEFAULT_POLL_INTERVAL
 
     if (!refreshAlarm) {
       console.log('No alarm found, creating new one with interval:', interval, 'minutes')
@@ -125,10 +129,21 @@ class Background {
       this.options.allTrackers = true
     }
 
-    // Ensure interval is valid (between 1 and 30 minutes)
-    if (!this.options.interval || this.options.interval < 1 || this.options.interval > 30) {
-      console.warn('Invalid options.interval, defaulting to 5 minutes')
-      this.options.interval = 5
+    // Options written by older versions (or a hand-edited storage) may
+    // carry anything; the options form already rejects out-of-range
+    // input, so here only legacy values need fixing. parseInt also
+    // normalizes to a plain number — ensureAlarm compares it against
+    // the numeric periodInMinutes
+    const interval = parseInt(this.options.interval, 10)
+
+    if (!Number.isInteger(interval) || interval < MIN_POLL_INTERVAL) {
+      console.warn('Invalid options.interval, defaulting to', DEFAULT_POLL_INTERVAL, 'minutes')
+      this.options.interval = DEFAULT_POLL_INTERVAL
+    } else if (interval > MAX_POLL_INTERVAL) {
+      console.warn(`options.interval ${interval} above maximum, clamping to ${MAX_POLL_INTERVAL} minutes`)
+      this.options.interval = MAX_POLL_INTERVAL
+    } else {
+      this.options.interval = interval
     }
 
     // Ensure number is valid

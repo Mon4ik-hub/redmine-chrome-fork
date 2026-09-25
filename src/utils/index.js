@@ -2,6 +2,16 @@ import i18n from '@/i18n'
 
 const REQUEST_TIMEOUT = 180000 // 180 seconds
 
+// The poll interval range in minutes, shared by the options form and the
+// background service worker. chrome.alarms enforces a 30-second minimum
+// period, so one minute is the floor; the ceiling keeps polling from
+// turning into "never"
+export const MIN_POLL_INTERVAL = 1
+
+export const MAX_POLL_INTERVAL = 120
+
+export const DEFAULT_POLL_INTERVAL = 10
+
 export default {
   setBadgeText (text) {
     chrome.action.setBadgeText({ text })

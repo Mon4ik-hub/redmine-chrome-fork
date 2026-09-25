@@ -110,6 +110,19 @@
     </FormGroup>
 
     <FormGroup
+      :label="t('update_interval')"
+      :description="t('update_interval_hint', { min: MIN_POLL_INTERVAL, max: MAX_POLL_INTERVAL })"
+    >
+      <FormInput
+        v-model="options.interval"
+        type="number"
+        :min="MIN_POLL_INTERVAL"
+        :max="MAX_POLL_INTERVAL"
+        :placeholder="String(DEFAULT_POLL_INTERVAL)"
+      />
+    </FormGroup>
+
+    <FormGroup
       :label="t('notifications_limit')"
       :description="t('notifications_limit_hint')"
     >
@@ -186,7 +199,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ProjectTree from '@/components/options/ProjectTree.vue'
-import Utils from '@/utils'
+import Utils, { DEFAULT_POLL_INTERVAL, MAX_POLL_INTERVAL, MIN_POLL_INTERVAL } from '@/utils'
 import { sendMessage } from '@/utils/messaging'
 import { statusColor } from '@/utils/statusColors'
 
@@ -207,7 +220,7 @@ const options = ref({
   // Track every tracker; when false, only the ids in `trackers` are
   allTrackers: true,
   trackers: [],
-  interval: 10,
+  interval: DEFAULT_POLL_INTERVAL,
   tooltip_limit: 200,
   group_notifications: false,
   // Max journal entries shown in an expanded task's notification panel;
@@ -236,32 +249,6 @@ const list = ref({
   ],
   status: [],
   number: [25, 50, 100],
-  interval: [
-    {
-      value: 1,
-      text: t('minutes_1')
-    },
-    {
-      value: 5,
-      text: t('minutes_5')
-    },
-    {
-      value: 10,
-      text: t('minutes_10')
-    },
-    {
-      value: 20,
-      text: t('minutes_20')
-    },
-    {
-      value: 30,
-      text: t('minutes_30')
-    },
-    {
-      value: 60,
-      text: t('hours_1')
-    }
-  ],
   tooltip_limit: [
     {
       value: 100,
@@ -302,11 +289,6 @@ const selectsTop = [
   }
 ]
 const selectsBottom = [
-  {
-    label: t('update_interval'),
-    name: 'interval',
-    single: true
-  },
   {
     label: t('tooltip_limit'),
     name: 'tooltip_limit',
@@ -524,7 +506,14 @@ const getData = async savedOptions => {
 
     options.value.number = savedOptions.number || options.value.number
 
-    options.value.interval = savedOptions.interval || options.value.interval
+    // A value saved by an older version (or a hand-edited storage) is
+    // clamped for display so the field always shows something save()
+    // will accept back
+    const savedInterval = parseInt(savedOptions.interval, 10)
+
+    options.value.interval = Number.isInteger(savedInterval) ?
+      Math.min(Math.max(savedInterval, MIN_POLL_INTERVAL), MAX_POLL_INTERVAL) :
+      options.value.interval
     // 0 means "no truncation", so the fallback must not treat it as empty
     options.value.tooltip_limit = savedOptions.tooltip_limit ?? options.value.tooltip_limit
     // 0 means "show all", so the fallback must not treat it as empty either
@@ -550,6 +539,18 @@ const onNext = () => {
   })
 }
 const save = async () => {
+  // The interval is a free-form number input: an empty, non-numeric or
+  // out-of-range value blocks the save instead of being silently
+  // substituted — a silent rewrite here is exactly the UI-vs-background
+  // mismatch this field replaced
+  const interval = parseInt(options.value.interval, 10)
+
+  if (!Number.isInteger(interval) || interval < MIN_POLL_INTERVAL || interval > MAX_POLL_INTERVAL) {
+    window.alert(t('interval_error', { min: MIN_POLL_INTERVAL, max: MAX_POLL_INTERVAL }))
+    return
+  }
+  options.value.interval = interval
+
   // The limit is a free-form number input: empty/negative values mean "all"
   const limit = parseInt(options.value.notifications_limit, 10)
 
