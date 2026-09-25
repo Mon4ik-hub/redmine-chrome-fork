@@ -10,17 +10,48 @@ let nameMaps = null
 // open kept the unread counters spinning for a long time. A compact copy of
 // each issue is therefore kept in chrome.storage.local and reused while its
 // "updated_on" stamp is unchanged. Long texts are capped so the cache (with
-// no unlimitedStorage permission) stays well under the storage quota.
+// the unlimitedStorage permission, plus a per-issue byte budget) stays sane.
 const JOURNAL_CACHE_KEY = 'journal_cache'
 const MAX_CACHED_ISSUES = 40
 const NOTES_CAP = 10000
 const DESCRIPTION_CAP = 50000
+// One monster task can carry journals measured in megabytes; keeping them
+// all would bloat every cache flush. The newest journals matter (tooltip +
+// notifications since lastRead), so the budget drops the OLDEST ones
+const JOURNAL_BUDGET = 512 * 1024
 
 const capText = (text, limit) => {
   if (typeof text === 'string' && text.length > limit) {
     return text.slice(0, limit)
   }
   return text
+}
+
+const journalSize = journal =>
+  Math.min(String(journal.notes || '').length, NOTES_CAP) +
+  (journal.details?.length || 0) * 128 + 256
+
+// Compact copy of a journal, capped to the budget from the newest entry
+// backwards; at least the newest journal always survives
+const capJournals = journals => {
+  const kept = []
+  let used = 0
+
+  for (let i = journals.length - 1; i >= 0; i--) {
+    const journal = journals[i]
+
+    if (used + journalSize(journal) > JOURNAL_BUDGET && kept.length) {
+      break
+    }
+    used += journalSize(journal)
+    kept.unshift({
+      user: journal.user ? { name: journal.user.name } : undefined,
+      created_on: journal.created_on,
+      notes: capText(journal.notes, NOTES_CAP),
+      details: journal.details
+    })
+  }
+  return kept
 }
 
 const toCacheEntry = issueData => ({
@@ -34,12 +65,7 @@ const toCacheEntry = issueData => ({
     project: issueData.project,
     custom_fields: issueData.custom_fields,
     description: capText(issueData.description, DESCRIPTION_CAP),
-    journals: (issueData.journals || []).map(journal => ({
-      user: journal.user ? { name: journal.user.name } : undefined,
-      created_on: journal.created_on,
-      notes: capText(journal.notes, NOTES_CAP),
-      details: journal.details
-    }))
+    journals: capJournals(issueData.journals || [])
   }
 })
 

@@ -28,13 +28,10 @@ export default {
     const data = JSON.stringify(value)
 
     if (chrome?.storage?.local) {
-      try {
-        await chrome.storage.local.set({ [key]: data })
-      } catch (error) {
-        console.error('Chrome storage set error:', error)
-        // Fallback to localStorage
-        localStorage[key] = data
-      }
+      // Errors (quota, storage locked) propagate to the caller — there is
+      // no usable fallback: localStorage does not exist in the service
+      // worker, and in pages a copy there would never be read back
+      await chrome.storage.local.set({ [key]: data })
     } else {
       localStorage[key] = data
     }

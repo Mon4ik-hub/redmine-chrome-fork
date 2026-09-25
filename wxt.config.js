@@ -6,7 +6,7 @@ export default defineConfig({
     name: 'Redmine Notification',
     author: 'Denis Monakhov',
     homepage_url: 'https://github.com/Mon4ik-hub/redmine-chrome-fork',
-    permissions: ['alarms', 'notifications', 'storage', 'tabs'],
+    permissions: ['alarms', 'notifications', 'storage', 'tabs', 'unlimitedStorage'],
     host_permissions: ['http://*/*', 'https://*/*', 'http://localhost/*'],
     action: {
       default_icon: {
