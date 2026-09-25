@@ -1,9 +1,9 @@
 {
   "name": "redmine-chrome",
   "description": "Redmine notification tools",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "type": "module",
-  "author": "zhixin <wenzhixin2010@gmail.com>",
+  "author": "Denis Monakhov",
   "license": "MIT",
   "scripts": {
     "serve": "wxt",

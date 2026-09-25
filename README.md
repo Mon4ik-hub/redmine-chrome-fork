@@ -1,19 +1,91 @@
 # Redmine Notification
 
-Redmine notification tools for chrome extension.[![Build Status](https://travis-ci.org/wenzhixin/redmine-chrome.svg?branch=master)](https://travis-ci.org/wenzhixin/redmine-chrome)
+A Chrome (Manifest V3) extension that watches your Redmine issues — assigned,
+authored or watched — and keeps unread changes, desktop notifications and a
+fast popup list on top of them.
 
-[Install](https://chrome.google.com/webstore/detail/cenhhgabijhpobnfnmkigobcefkmhjbj)
+This is a fork of
+[wenzhixin/redmine-chrome](https://github.com/wenzhixin/redmine-chrome) by
+Zhixin Wen, reworked and extended. The original MIT license and copyright
+notice are kept in [LICENSE](LICENSE).
 
 ## Features
 
-* See the problem and the discuss directly through the plugin.
-* Real time updates and automatically prompted to the problem.
-* Support for multiple redmine, centralized management issues.
-* Support for custom issue roles (developer and tester).
-* issue status and issue number.
-* Support offline viewing problems.
+* Watch by role: assigned to me / authored / watching, with per-role tabs
+* Project and tracker filters: a project tree with subtree selection, the
+  tracker list scoped to the selected projects
+* Unread tracking: per-issue badges with the number of unseen changes, an
+  expandable change history (comments, attribute changes, relations) with a
+  configurable display limit
+* Instant hover tooltip with the last change of any issue, rendered from a
+  persistent cache — no request on warm paths
+* Background journal prefetch for freshly unread issues; updates that move
+  `updated_on` without a journal entry (subtask progress and the like) are
+  auto-read
+* First-connect baseline: no retroactive unread flood when connecting a
+  server; derived caches are reset when the server or API key changes
+* Task folders: group issues into folders, per-folder unread counts and
+  "mark all read"
+* Fluent-style popup: pivot tabs, sticky command bar, sorting and a subject
+  filter
+* Status colors: semantic colors for well-known statuses, a stable palette
+  for custom ones, muted for closed, plus a manual color editor in the
+  options
+* Desktop notifications with per-status opt-in
+* Free-form polling interval (1–120 minutes), validated in both the UI and
+  the background
+* Languages: English, Russian, Chinese, Japanese, Spanish
+
+## Build
+
+```bash
+npm install
+npm run build   # produces output/chrome-mv3
+```
+
+Load `output/chrome-mv3` as an unpacked extension in `chrome://extensions`,
+or pack it with `npm run zip`.
+
+## Docs
+
+* [How it works](docs/how-it-works.md) — polling, read state, caches
+* [Privacy](docs/privacy.md)
 
 ## Changelog
+
+### 3.3.0 (2026-09-26)
+
+Fork release: a reworked polling and read-state pipeline plus a redesigned
+popup.
+
+#### Added
+
+* Baseline read state on first connect — no retroactive unread flood
+* Background journal prefetch for freshly unread issues
+* Persistent journal and tooltip caches with instant last-change hover
+  tooltips
+* Phantom updates (`updated_on` moved without journal entries) are auto-read
+* Project tree and tracker filters in the options
+* Task folders with per-folder unread counts and "mark all read"
+* Per-issue grouped notifications with a configurable display limit
+* Status colors: semantic plus a stable palette for custom statuses, manual
+  color editor in the options
+* Free-form polling interval (1–120 minutes), validated in UI and background
+* Docs: how-it-works.md, privacy.md
+
+#### Improvements
+
+* Fluent-style popup redesign: pivot tabs, sticky header, comments restyle
+* Derived caches are reset when the server or API key changes
+* Fork copyright added to the options footer and LICENSE
+
+#### Fixes
+
+* Fixed a crash when a role has no issues data after a failed first fetch
+* Fixed `notify=false` being re-enabled after reopening the options
+* Removed the unreachable issue detail view (XSS-prone dead code)
+* Dropped the upstream dev proxy and the MV2 action duplicate from the
+  build config
 
 ### 3.2.0 (2026-03-05)
 

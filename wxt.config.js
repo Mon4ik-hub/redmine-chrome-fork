@@ -4,6 +4,8 @@ import { defineConfig } from 'wxt'
 export default defineConfig({
   manifest: () => ({
     name: 'Redmine Notification',
+    author: 'Denis Monakhov',
+    homepage_url: 'https://github.com/Mon4ik-hub/redmine-chrome-fork',
     permissions: ['alarms', 'notifications', 'storage', 'tabs'],
     host_permissions: ['http://*/*', 'https://*/*', 'http://localhost/*'],
     action: {
