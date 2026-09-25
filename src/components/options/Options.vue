@@ -190,7 +190,7 @@
         @click="save"
       >
         {{ t('save_your_changes') }}
-      </button>
+      </Button>
     </FormGroup>
   </Form>
 </template>
