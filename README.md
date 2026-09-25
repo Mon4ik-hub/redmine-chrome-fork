@@ -6,8 +6,10 @@ fast popup list on top of them.
 
 This is a fork of
 [wenzhixin/redmine-chrome](https://github.com/wenzhixin/redmine-chrome) by
-Zhixin Wen, reworked and extended. The original MIT license and copyright
-notice are kept in [LICENSE](LICENSE).
+Zhixin Wen, reworked and extended in
+[Mon4ik-hub/redmine-chrome-fork](https://github.com/Mon4ik-hub/redmine-chrome-fork).
+The original MIT license and copyright notice are kept in [LICENSE](LICENSE).
+Bugs and suggestions: [fork issues](https://github.com/Mon4ik-hub/redmine-chrome-fork/issues).
 
 ## Features
 
