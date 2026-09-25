@@ -199,6 +199,19 @@ class Background {
       this.data[role].issues = Utils.filterIssues(res, this.data, role)
       this.data[role].error = false
 
+      // First successful fetch for this role: everything in the slice is
+      // already "the past", so baseline at the newest server timestamp of
+      // the slice (server time, immune to local clock skew) — a fresh
+      // install starts with zero unread and no retroactive notifications.
+      // A role whose request failed picks its baseline on a later cycle
+      if (!this.data[role].lastRead && this.data[role].issues.length) {
+        const baseline = Math.max(...this.data[role].issues.map(issue =>
+          new Date(issue.updated_on).getTime()))
+
+        this.data[role].lastRead = baseline
+        this.data[role].lastNotified = baseline
+      }
+
       if (this.data[role].lastRead) {
         lastRead.setTime(this.data[role].lastRead)
       }

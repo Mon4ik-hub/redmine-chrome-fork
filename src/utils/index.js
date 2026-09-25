@@ -71,6 +71,22 @@ export default {
     }
   },
 
+  async removeStorage (keys) {
+    const list = [].concat(keys)
+
+    if (chrome?.storage?.local) {
+      try {
+        await chrome.storage.local.remove(list)
+        return
+      } catch (error) {
+        console.error('Chrome storage remove error:', error)
+      }
+    }
+    for (const key of list) {
+      delete localStorage[key]
+    }
+  },
+
   // Raw request: returns the whole parsed response, including the
   // total_count envelope that pagination needs
   async requestAPI (options, name, params = {}) {

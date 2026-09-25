@@ -554,6 +554,20 @@ const save = async () => {
   const limit = parseInt(options.value.notifications_limit, 10)
 
   options.value.notifications_limit = Number.isFinite(limit) && limit > 0 ? limit : 0
+
+  // A different server (address or API key) invalidates everything derived
+  // from the old one: read state would leak "the past" across servers, and
+  // journal_cache is keyed by the bare issue id, so ids of two servers
+  // collide and would serve each other's journals. Folders stay — they are
+  // user data. The next poll gives the new server its own first-connect
+  // baseline
+  const savedOptions = await Utils.getStorage('options')
+
+  if (!savedOptions || savedOptions.url !== options.value.url ||
+      savedOptions.key !== options.value.key) {
+    await Utils.removeStorage(['data', 'journal_cache', 'tooltip_cache'])
+  }
+
   // Keep the full status/tracker name lists so the popup can translate
   // ids into names in the last-change tooltip; the tracker list is the
   // union over visible projects, exactly the set issues can come from
