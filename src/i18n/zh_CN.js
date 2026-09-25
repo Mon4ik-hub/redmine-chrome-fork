@@ -14,6 +14,7 @@ export default {
   attr_is_private: '私有',
   attr_parent_id: '父任务',
   attr_priority_id: '优先级',
+  attr_project_id: '项目',
   attr_start_date: '开始日期',
   attr_status_id: '状态',
   attr_subject: '主题',

@@ -14,6 +14,7 @@ export default {
   attr_is_private: 'プライベート',
   attr_parent_id: '親チケット',
   attr_priority_id: '優先度',
+  attr_project_id: 'プロジェクト',
   attr_start_date: '開始日',
   attr_status_id: 'ステータス',
   attr_subject: '題名',

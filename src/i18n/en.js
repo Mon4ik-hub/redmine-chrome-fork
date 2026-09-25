@@ -14,6 +14,7 @@ export default {
   attr_is_private: 'Private',
   attr_parent_id: 'Parent task',
   attr_priority_id: 'Priority',
+  attr_project_id: 'Project',
   attr_start_date: 'Start date',
   attr_status_id: 'Status',
   attr_subject: 'Subject',

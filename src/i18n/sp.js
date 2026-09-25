@@ -14,6 +14,7 @@ export default {
   attr_is_private: 'Privada',
   attr_parent_id: 'Tarea padre',
   attr_priority_id: 'Prioridad',
+  attr_project_id: 'Proyecto',
   attr_start_date: 'Fecha inicio',
   attr_status_id: 'Estado',
   attr_subject: 'Tema',

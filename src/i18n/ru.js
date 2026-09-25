@@ -14,6 +14,7 @@ export default {
   attr_is_private: 'Приватная',
   attr_parent_id: 'Родительская задача',
   attr_priority_id: 'Приоритет',
+  attr_project_id: 'Проект',
   attr_start_date: 'Дата начала',
   attr_status_id: 'Статус',
   attr_subject: 'Тема',
