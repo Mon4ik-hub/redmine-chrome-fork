@@ -170,7 +170,7 @@ export default {
         if (key === role) {
           return true
         }
-        if (obj.issues.find(item => item.id === issue.id)) {
+        if (obj.issues?.find(item => item.id === issue.id)) {
           return false
         }
       }

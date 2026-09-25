@@ -315,7 +315,7 @@ const fixBadgeError = async () => {
   // Fix background request error display x
   if (
     badgeText === 'x' &&
-    Object.values(data.value).some(it => it.issues.length > 0)
+    Object.values(data.value).some(it => it.issues?.length > 0)
   ) {
     // Clear error badge and update with actual count
     const totalUnread = calculateTotalUnread()
