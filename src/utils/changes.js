@@ -60,6 +60,7 @@ const journalCachePromise = new Promise(resolve => {
 let journalCacheFlushTimer = null
 
 const flushJournalCache = async () => {
+  clearTimeout(journalCacheFlushTimer)
   journalCacheFlushTimer = null
 
   if (journalCache.size > MAX_CACHED_ISSUES) {
@@ -84,6 +85,12 @@ const rememberIssue = issueData => {
   if (!journalCacheFlushTimer) {
     journalCacheFlushTimer = setTimeout(flushJournalCache, 500)
   }
+}
+
+// Persist the cache right away: in the service worker a pending debounce
+// may never fire, because the worker can die before it runs
+export const flushCaches = async () => {
+  await flushJournalCache()
 }
 
 // Truncate the comment preview; limit 0 (configured as "full") keeps the text

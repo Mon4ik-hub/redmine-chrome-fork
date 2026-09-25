@@ -1,11 +1,21 @@
+import i18n from '@/i18n'
 import Utils from '@/utils'
+import { describeLastChange, flushCaches, getIssueDetail } from '@/utils/changes'
 import { onMessage } from '@/utils/messaging'
+
+// vue-i18n does not exist in the service worker; a flat dictionary lookup
+// covers every key the change renderer uses, and a missing key degrades to
+// the raw attribute name exactly like the popup's attrLabel fallback
+const swT = key => i18n[Utils.getBrowserLanguage()]?.[key] ?? key
 
 class Background {
   constructor () {
     this.unreadCount = 0
     this.keepAliveIntervalId = null
     this.alarmListener = null
+    // Issues that turned unread in the current cycle, for the journal
+    // prefetch
+    this.freshUnread = []
 
     this.init()
   }
@@ -144,10 +154,16 @@ class Background {
         console.error('options.issues is not properly defined:', this.options.issues)
         this.error = true
       } else {
+        this.freshUnread = []
         for (const role of this.options.issues) {
           console.log(`Processing role: ${role}`)
           await this.getList(role)
         }
+
+        // Warm the caches for the issues that turned unread in this cycle;
+        // may silently auto-read phantom updates, so it runs before the
+        // data is saved
+        await this.prefetchJournals()
 
         await Utils.setStorage('data', this.data)
         console.log('initRequest completed successfully')
@@ -189,6 +205,13 @@ class Background {
       if (!this.data[role]) {
         this.data[role] = {}
       }
+
+      // The journal prefetch targets only the issues that turned unread in
+      // this cycle — diff the fresh list against the previous one. The
+      // previous slice by id also tells a phantom update (an already-seen
+      // issue) apart from a brand-new task
+      const previousUnread = this.data[role].unreadList || []
+      const previousIssues = new Map((this.data[role].issues || []).map(issue => [issue.id, issue]))
 
       const res = await Utils.getAPI(this.options, 'issues', query)
       const lastRead = new Date(0)
@@ -250,10 +273,90 @@ class Background {
       this.data[role].lastNotified = lastNotified.getTime()
       this.data[role].unreadList = unreadList
       this.unreadCount += count
+
+      for (const issue of this.data[role].issues) {
+        const uuid = Utils.getUUID(issue)
+
+        if (unreadList.includes(uuid) && !previousUnread.includes(uuid)) {
+          this.freshUnread.push({
+            role,
+            seen: previousIssues.has(issue.id),
+            issue: { id: issue.id, updated_on: issue.updated_on }
+          })
+        }
+      }
     } catch (error) {
       console.error(`Error fetching list for role ${role}:`, error)
       this.data[role].error = true
       this.error = true
+    }
+  }
+
+  // Download the full journals of the issues that turned unread in this
+  // cycle (typically a handful), so journal_cache and tooltip_cache are
+  // warm before the popup is ever opened; the whole top-N is NOT fetched
+  async prefetchJournals () {
+    const batch = this.freshUnread.slice(0, 10)
+
+    this.freshUnread = []
+
+    if (!batch.length) {
+      return
+    }
+
+    let cursor = 0
+    const worker = async () => {
+      while (cursor < batch.length) {
+        const { role, seen, issue } = batch[cursor++]
+
+        try {
+          const detail = await getIssueDetail(this.options, issue)
+
+          this.autoReadPhantom(role, seen, issue, detail)
+          // Render the last change into tooltip_cache while the journal is
+          // in memory, so the popup tooltip is instant with no requests
+          await describeLastChange(detail, this.options, swT)
+        } catch (error) {
+          console.error(`Journal prefetch failed for issue ${issue.id}:`, error)
+        }
+      }
+    }
+
+    await Promise.all(Array.from({ length: Math.min(4, batch.length) }, worker))
+    // The service worker can die before the 500ms write debounce fires
+    await flushCaches()
+  }
+
+  // updated_on moved without a single new journal entry (a subtask changed,
+  // and so on): there is nothing unread to show — mark the issue read
+  // silently, with server time, no notifications and no "issue updated"
+  // stub; the popup picks the change up via chrome.storage.onChanged.
+  // Only an issue already seen in the previous slice qualifies: one that
+  // just appeared there is a genuinely new task and stays unread
+  autoReadPhantom (role, seen, issue, detail) {
+    const roleData = this.data[role]
+    const uuid = Utils.getUUID(issue)
+
+    if (!seen || !roleData?.unreadList?.includes(uuid)) {
+      return
+    }
+
+    const cutoff = Math.max(roleData.lastRead || 0, roleData.readAt?.[issue.id] || 0)
+
+    if ((detail.journals || []).some(journal =>
+      new Date(journal.created_on).getTime() > cutoff)) {
+      return
+    }
+
+    roleData.unreadList = roleData.unreadList.filter(it => it !== uuid)
+    roleData.readList = roleData.readList || []
+    roleData.readList.push(uuid)
+    if (!roleData.readAt) {
+      roleData.readAt = {}
+    }
+    roleData.readAt[issue.id] = new Date(issue.updated_on).getTime()
+    if (this.unreadCount > 0) {
+      this.unreadCount--
     }
   }
 
