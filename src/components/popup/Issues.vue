@@ -36,6 +36,7 @@
       :merged-data="mergedData"
       @select-issue="showIssue"
       @mark-issue-read="markIssueRead"
+      @mark-folder-read="markFolderRead"
     />
   </div>
 </template>
@@ -261,21 +262,27 @@ const markAllRead = async () => {
   await saveData()
 }
 
-const markIssueRead = async issue => {
-  // The issue may live in any role (especially inside folders), so find
-  // the role it actually belongs to instead of using the selected one
-  const uuid = Utils.getUUID(issue)
+// An issue may live in any role (especially inside folders), so find the
+// role it actually belongs to instead of using the selected one. The whole
+// batch is written to storage once, so "mark a folder read" costs one write
+const markIssuesRead = async issues => {
+  let changed = false
 
-  for (const role of roles.value) {
-    const curData = data.value[role]
+  for (const issue of issues) {
+    const uuid = Utils.getUUID(issue)
 
-    if (!curData?.unreadList) {
-      continue
-    }
+    for (const role of roles.value) {
+      const curData = data.value[role]
 
-    const index = curData.unreadList.indexOf(uuid)
+      if (!curData?.unreadList) {
+        continue
+      }
 
-    if (index !== -1) {
+      const index = curData.unreadList.indexOf(uuid)
+
+      if (index === -1) {
+        continue
+      }
       curData.unreadList.splice(index, 1)
       if (!curData.readList) {
         curData.readList = []
@@ -287,10 +294,20 @@ const markIssueRead = async issue => {
         curData.readAt = {}
       }
       curData.readAt[issue.id] = Date.now()
-      await saveData()
-      return
+      changed = true
     }
   }
+  if (changed) {
+    await saveData()
+  }
+}
+
+const markIssueRead = async issue => {
+  await markIssuesRead([issue])
+}
+
+const markFolderRead = async issues => {
+  await markIssuesRead(issues)
 }
 
 const showIssue = async (issue, index) => {

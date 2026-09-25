@@ -40,6 +40,14 @@
           class="folder-unread-badge"
         >{{ folderUnreadCount(folder.id) }}</span>
         <button
+          v-if="folderUnreadCount(folder.id) > 0"
+          class="folder-read-btn"
+          :title="t('mark_all_read')"
+          @click.stop="markFolderRead(folder.id)"
+        >
+          <i class="fas fa-check-double" />
+        </button>
+        <button
           class="folder-delete-btn"
           :title="t('delete_folder')"
           @click.stop="removeFolder(folder.id)"
@@ -110,7 +118,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['select-issue', 'mark-issue-read'])
+const emit = defineEmits(['select-issue', 'mark-issue-read', 'mark-folder-read'])
 
 const nameInput = ref(null)
 const newFolderName = ref('')
@@ -154,6 +162,10 @@ const folderUnreadCount = folderId =>
 
 const toggleFolder = folderId => {
   openFolders.value[folderId] = !openFolders.value[folderId]
+}
+
+const markFolderRead = folderId => {
+  emit('mark-folder-read', folderIssuesMap.value[folderId] || [])
 }
 
 const createFolder = async () => {
@@ -283,6 +295,7 @@ const removeFolder = async folderId => {
   &:hover {
     background-color: #f3f2f1;
 
+    .folder-read-btn,
     .folder-delete-btn {
       opacity: 1;
     }
@@ -346,6 +359,36 @@ const removeFolder = async folderId => {
   background-color: #0078d4;
   border-radius: 10px;
   flex-shrink: 0;
+}
+
+/* "Mark all as read" on the folder header: same hover-reveal pattern as the
+   delete button, but with the accent color — it is the folder's main action
+   and only exists while the folder has unread tasks */
+.folder-read-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 13px;
+  color: #605e5c;
+  background-color: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.1s ease, background-color 0.1s ease, color 0.1s ease;
+
+  &:hover {
+    color: #0078d4;
+    background-color: #e5f1fb;
+  }
+
+  &:focus-visible {
+    opacity: 1;
+  }
 }
 
 .folder-delete-btn {
