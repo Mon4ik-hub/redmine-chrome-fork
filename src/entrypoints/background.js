@@ -20,6 +20,9 @@ class Background {
     // Issues that turned unread in the current cycle, for the journal
     // prefetch
     this.freshUnread = []
+    // Every role's issue ids as of the previous cycle, refreshed by each
+    // initRequest before any getList overwrites the slices
+    this.previousSlices = new Map()
 
     this.init()
   }
@@ -174,6 +177,12 @@ class Background {
         this.error = true
       } else {
         this.freshUnread = []
+        // Slice snapshot before this cycle: a task can move between roles
+        // (an admin reassigns it), and its read state must move with it
+        this.previousSlices = new Map(Object.entries(this.data)
+          .map(([role, roleData]) => [role, new Set((roleData?.issues || [])
+            .map(issue => issue.id))]))
+
         for (const role of this.options.issues) {
           console.log(`Processing role: ${role}`)
           await this.getList(role)
@@ -240,6 +249,33 @@ class Background {
 
       this.data[role].issues = Utils.filterIssues(res, this.data, role)
       this.data[role].error = false
+
+      // A task new to this role but known to another (an admin reassigned
+      // it between slices) keeps its read state: readAt is seeded from the
+      // role it left, so entries already passed there — or older than that
+      // role's first-connect baseline — do not resurrect as unread here.
+      // A task unknown to every role is genuinely new and stays unread
+      if (!this.data[role].readAt) {
+        this.data[role].readAt = {}
+      }
+      for (const issue of this.data[role].issues) {
+        if (previousIssues.has(issue.id)) {
+          continue
+        }
+        let carried = 0
+
+        for (const [otherRole, ids] of this.previousSlices) {
+          if (otherRole === role || !ids.has(issue.id)) {
+            continue
+          }
+          const other = this.data[otherRole]
+
+          carried = Math.max(carried, other?.lastRead || 0, other?.readAt?.[issue.id] || 0)
+        }
+        if (carried) {
+          this.data[role].readAt[issue.id] = carried
+        }
+      }
 
       // First successful fetch for this role: everything in the slice is
       // already "the past", so baseline at the newest server timestamp of
