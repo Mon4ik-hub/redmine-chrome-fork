@@ -7,6 +7,7 @@
     <div
       v-for="(issue, index) in sortedIssues"
       :key="issue.id + issue.updated_on"
+      v-lazy-row="issue"
       class="fluent-task-container"
       :class="{
         expanded: isGrouped && isUnread(issue) && expanded[issue.id],
@@ -241,19 +242,18 @@ import { useI18n } from 'vue-i18n'
 import Utils from '@/utils'
 import StatusBadge from '@/components/popup/StatusBadge.vue'
 import { trackerColor } from '@/utils/statusColors'
-import { describeLastChange, getIssueDetail, getIssueNotifications, getTooltipEntry, renderRawLastChange } from '@/utils/changes'
+import { describeLastChange, getIssueDetail, getIssueNotifications, getTooltipEntry, migrateLegacyJournalCache, renderRawLastChange } from '@/utils/changes'
 import {
   getFoldersData,
   moveIssueToFolder,
   removeIssueFromFolder
 } from '@/utils/folders'
 import dayjs from 'dayjs'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const { t } = useI18n()
 
 const toast = ref()
-const options = ref({})
 
 const props = defineProps({
   sortedIssues: {
@@ -263,6 +263,10 @@ const props = defineProps({
   currentData: {
     type: Object,
     default: () => ({})
+  },
+  options: {
+    type: Object,
+    required: true
   }
 })
 
@@ -276,21 +280,11 @@ const formatTime = dateString => dayjs(dateString).fromNow()
 // Grouped notifications mode (enabled in the options): every unread issue
 // shows the number of its changes since it was last seen and can be
 // expanded into the list of those changes, newest first
-const isGrouped = computed(() => options.value.group_notifications === true)
+const isGrouped = computed(() => props.options.group_notifications === true)
 
 const notifState = ref({})
 const expanded = ref({})
 
-// Options are loaded in onMounted; notification requests must not start
-// with an empty options object before that — it once defeated the
-// notifications_limit option on first popup open
-const optionsReady = ref(false)
-let resolveOptionsReady
-const optionsReadyPromise = new Promise(resolve => {
-  resolveOptionsReady = resolve
-})
-
-const MAX_INITIAL_LOAD = 30
 const LOAD_CONCURRENCY = 4
 
 // The moment the user last saw the issue: its own read timestamp or the
@@ -302,12 +296,6 @@ const cutoffFor = issue => {
 }
 
 const loadIssueNotifications = async issue => {
-  // Expanding a row can happen before onMounted finishes; wait for the
-  // options instead of requesting with the defaults
-  if (!optionsReady.value) {
-    await optionsReadyPromise
-  }
-
   const existing = notifState.value[issue.id]
 
   // A load for the same version of the issue is already done or running
@@ -323,7 +311,7 @@ const loadIssueNotifications = async issue => {
     notifState.value[issue.id] = { status: 'loading', items: [], updatedOn: issue.updated_on }
   }
   try {
-    const { items, total } = await getIssueNotifications(options.value, issue, cutoffFor(issue), t)
+    const { items, total } = await getIssueNotifications(props.options, issue, cutoffFor(issue), t)
 
     notifState.value[issue.id] = { status: 'ready', items, total, updatedOn: issue.updated_on }
   } catch (error) {
@@ -344,33 +332,76 @@ const hiddenCount = state => {
   return (state.total ?? state.items.length) - state.items.length
 }
 
-// Prefetch the counts for unread issues, a few requests at a time; the
-// rest are loaded on demand when the issue is expanded
-const loadUnreadNotifications = async () => {
-  const unread = props.sortedIssues
-    .filter(issue => isUnread.value(issue))
-    .slice(0, MAX_INITIAL_LOAD)
+// Badge numbers cost a journal per issue, so they are paid for lazily: an
+// IntersectionObserver watches the rows, and the ones entering the viewport
+// (plus a buffer below for smooth scrolling) are queued through a small
+// worker pool. The journal itself usually comes from the per-issue storage
+// cache; the API is hit only on a cache miss, exactly like an on-demand
+// expand used to do
+const lazyIssues = new Map()
+let lazyObserver = null
+let lazyActive = 0
+const lazyQueue = new Set()
 
-  let cursor = 0
-  const worker = async () => {
-    while (cursor < unread.length) {
-      await loadIssueNotifications(unread[cursor++])
+const pumpLazyQueue = () => {
+  for (const issue of lazyQueue) {
+    if (lazyActive >= LOAD_CONCURRENCY) {
+      break
     }
+    lazyQueue.delete(issue)
+    lazyActive++
+    loadIssueNotifications(issue).finally(() => {
+      lazyActive--
+      pumpLazyQueue()
+    })
   }
-
-  await Promise.all(Array.from({ length: Math.min(LOAD_CONCURRENCY, unread.length) }, worker))
 }
 
-const unreadSignature = computed(() => props.sortedIssues
-  .filter(issue => isUnread.value(issue))
-  .map(issue => `${issue.id}:${issue.updated_on}:${cutoffFor(issue)}`)
-  .join('|'))
-
-watch(() => [isGrouped.value, optionsReady.value ? unreadSignature.value : ''], ([grouped]) => {
-  if (grouped && optionsReady.value) {
-    loadUnreadNotifications()
+const enqueueLazyLoad = issue => {
+  if (!isGrouped.value) {
+    return
   }
-}, { immediate: true })
+  const state = notifState.value[issue.id]
+
+  if (state && (state.status === 'ready' || state.status === 'loading')) {
+    return
+  }
+  lazyQueue.add(issue)
+  pumpLazyQueue()
+}
+
+const ensureLazyObserver = () => {
+  if (!lazyObserver) {
+    lazyObserver = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) {
+          continue
+        }
+        const issue = lazyIssues.get(entry.target)
+
+        lazyObserver.unobserve(entry.target)
+        if (issue) {
+          enqueueLazyLoad(issue)
+        }
+      }
+    }, { rootMargin: '300px 0px' })
+  }
+  return lazyObserver
+}
+
+// v-lazy-row="issue": observes the row element; Vue calls these hooks for
+// every row the v-for renders, including re-renders after a role or filter
+// switch
+const vLazyRow = {
+  mounted (el, binding) {
+    lazyIssues.set(el, binding.value)
+    ensureLazyObserver().observe(el)
+  },
+  unmounted (el) {
+    lazyObserver?.unobserve(el)
+    lazyIssues.delete(el)
+  }
+}
 
 // Hover tooltip with the last change of an issue (comment, status change,
 // etc), loaded on demand from utils/changes.js and cached per popup session.
@@ -449,7 +480,7 @@ const showTooltip = async (issue, row) => {
     }
     if (cached && cached.updated_on === issue.updated_on) {
       tooltip.value.change = cached.lastChange ||
-        renderRawLastChange(cached.journal, options.value, t)
+        renderRawLastChange(cached.journal, props.options, t)
       tooltip.value.loading = false
       await nextTick()
       positionTooltip(row)
@@ -458,12 +489,12 @@ const showTooltip = async (issue, row) => {
 
     // Cold path: fetch (or take from journal_cache) and render; this also
     // refills both caches for the next time
-    const detail = await getIssueDetail(options.value, issue)
+    const detail = await getIssueDetail(props.options, issue)
 
     if (hoveredIssue !== issue) {
       return
     }
-    tooltip.value.change = await describeLastChange(detail, options.value, t)
+    tooltip.value.change = await describeLastChange(detail, props.options, t)
     tooltip.value.loading = false
     await nextTick()
     positionTooltip(row)
@@ -635,9 +666,9 @@ const selectIssue = (issue, index) => {
 // context menu with the "Move to folder" item, which parses the eternal
 // issue id from this URL
 const issueUrl = issue => {
-  const baseUrl = options.value.url?.endsWith('/') ?
-    options.value.url.slice(0, -1) :
-    options.value.url
+  const baseUrl = props.options.url?.endsWith('/') ?
+    props.options.url.slice(0, -1) :
+    props.options.url
 
   return `${baseUrl}/issues/${issue.id}`
 }
@@ -653,14 +684,19 @@ const onViewportScroll = () => {
   closeFolderMenu()
 }
 
-onMounted(async () => {
-  options.value = await Utils.getStorage('options') || {}
-  optionsReady.value = true
-  resolveOptionsReady()
+onMounted(() => {
   window.addEventListener('scroll', onViewportScroll, true)
+  // The one-time legacy-cache migration reads the old ~32 MB key; the
+  // background usually wins this race during its poll cycle, and the popup
+  // defers its own attempt past the first paint so opening never pays for it
+  setTimeout(() => {
+    migrateLegacyJournalCache()
+  }, 2000)
 })
 
 onBeforeUnmount(() => {
+  lazyObserver?.disconnect()
+  lazyObserver = null
   window.removeEventListener('scroll', onViewportScroll, true)
   hideTooltip()
   closeFolderMenu()

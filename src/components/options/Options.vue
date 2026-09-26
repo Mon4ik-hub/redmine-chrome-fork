@@ -538,6 +538,23 @@ const onNext = () => {
     key: options.value.key
   })
 }
+// The journal cache is stored as per-issue "journal_cache/<id>" keys plus
+// the tiny index and the migration marker; enumerating beats hardcoding
+// the layout, so a server switch cannot leave orphaned entries behind
+const removeServerBoundStorage = async () => {
+  const all = chrome?.storage?.local ?
+    await chrome.storage.local.get(null) :
+    Object.fromEntries(Object.keys(localStorage).map(key => [key, localStorage[key]]))
+  const keys = ['data', 'tooltip_cache', 'journal_cache', 'jc_index', 'jc_migrated']
+
+  for (const key of Object.keys(all)) {
+    if (key.startsWith('journal_cache/')) {
+      keys.push(key)
+    }
+  }
+  await Utils.removeStorage(keys)
+}
+
 const save = async () => {
   // The interval is a free-form number input: an empty, non-numeric or
   // out-of-range value blocks the save instead of being silently
@@ -566,7 +583,7 @@ const save = async () => {
 
   if (!savedOptions || savedOptions.url !== options.value.url ||
       savedOptions.key !== options.value.key) {
-    await Utils.removeStorage(['data', 'journal_cache', 'tooltip_cache'])
+    await removeServerBoundStorage()
   }
 
   // Keep the full status/tracker name lists so the popup can translate

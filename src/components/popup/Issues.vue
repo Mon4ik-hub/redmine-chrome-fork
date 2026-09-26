@@ -24,6 +24,7 @@
       <List
         :sorted-issues="filteredIssues"
         :current-data="currentData"
+        :options="options"
         @select-issue="showIssue"
         @mark-issue-read="markIssueRead"
       />
@@ -51,6 +52,13 @@ import List from '@/components/popup/List.vue'
 import Folders from '@/components/popup/Folders.vue'
 
 const emit = defineEmits(['select-issue'])
+
+const props = defineProps({
+  options: {
+    type: Object,
+    required: true
+  }
+})
 
 const roles = ref([])
 const roleIndex = ref(0)
@@ -315,15 +323,21 @@ const showIssue = async (issue, index) => {
 }
 
 const loadSettings = async () => {
-  const popupSettings = await Utils.getStorage('popup_settings') || {}
-  const options = await Utils.getStorage('options') || {}
+  // One storage round trip instead of four sequential ones: the popup list
+  // cannot render until "data" arrives, so every awaited read before it
+  // adds straight to the open time
+  const [popupSettings, storedData, folders] = await Promise.all([
+    Utils.getStorage('popup_settings'),
+    Utils.getStorage('data'),
+    getFoldersData()
+  ])
 
-  roles.value = options.issues || ['assigned_to_id']
-  roleIndex.value = popupSettings.role_index || 0
-  order.value = popupSettings.order || 'default'
-  activeTab.value = popupSettings.tab === 'folders' ? 'folders' : 'issues'
-  data.value = await Utils.getStorage('data') || {}
-  foldersData.value = await getFoldersData()
+  roles.value = props.options.issues || ['assigned_to_id']
+  roleIndex.value = popupSettings?.role_index || 0
+  order.value = popupSettings?.order || 'default'
+  activeTab.value = popupSettings?.tab === 'folders' ? 'folders' : 'issues'
+  data.value = storedData || {}
+  foldersData.value = folders
 }
 
 const fixBadgeError = async () => {

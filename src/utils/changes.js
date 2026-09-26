@@ -11,7 +11,17 @@ let nameMaps = null
 // each issue is therefore kept in chrome.storage.local and reused while its
 // "updated_on" stamp is unchanged. Long texts are capped so the cache (with
 // the unlimitedStorage permission, plus a per-issue byte budget) stays sane.
-const JOURNAL_CACHE_KEY = 'journal_cache'
+// The cache lives in chrome.storage.local as ONE KEY PER ISSUE
+// ("journal_cache/<id>", entry capped to the budget). It used to be a single
+// "journal_cache" key holding every cached issue in one JSON value (~32 MB in
+// practice): every popup open read and parsed the whole thing and every flush
+// rewrote it. "jc_index" maps id → updated_on so eviction can enumerate the
+// stored keys without reading them; "jc_migrated" marks the one-time move off
+// the legacy key
+const LEGACY_JOURNAL_CACHE_KEY = 'journal_cache'
+const JOURNAL_KEY_PREFIX = 'journal_cache/'
+const JOURNAL_INDEX_KEY = 'jc_index'
+const JOURNAL_MIGRATED_KEY = 'jc_migrated'
 const MAX_CACHED_ISSUES = 40
 const NOTES_CAP = 10000
 const DESCRIPTION_CAP = 50000
@@ -91,28 +101,36 @@ const toCacheEntry = issueData => ({
   }
 })
 
-// The whole cache is read once per popup session; writes are batched with a
-// short delay, so prefetching a page of issues results in one storage.set
+// In-session memory of the per-issue cache; a null entry is a known miss, so
+// a cache-less issue costs one storage read per session, not per access.
+// Writes are batched with a short delay, so prefetching a page of issues
+// results in one storage.set
 const journalCache = new Map()
-const journalCachePromise = new Promise(resolve => {
-  Utils.getStorage(JOURNAL_CACHE_KEY)
-    .catch(() => null)
-    .then(stored => {
-      for (const [id, entry] of Object.entries(stored || {})) {
-        if (entry?.updated_on && entry.issue) {
-          // Entries bloated by the pre-cap code (uncapped detail values,
-          // megabytes per issue) are dropped: the next access re-fetches
-          // and re-caps them; the next flush shrinks the stored map
-          if (JSON.stringify(entry).length > JOURNAL_BUDGET * 2) {
-            continue
-          }
-          journalCache.set(Number(id), entry)
-        }
-      }
-      resolve()
-    })
-})
-let journalCacheFlushTimer = null
+// id → updated_on for every stored per-issue key; drives the LRU eviction
+// and survives context restarts
+const journalIndex = new Map()
+const dirtyJournals = new Set()
+let journalFlushTimer = null
+
+const journalIndexPromise = Utils.getStorage(JOURNAL_INDEX_KEY)
+  .catch(() => null)
+  .then(stored => {
+    for (const [id, updatedOn] of Object.entries(stored || {})) {
+      journalIndex.set(Number(id), updatedOn)
+    }
+  })
+
+// chrome.storage.local.set accepts several keys in one atomic call; values
+// follow the extension convention of JSON strings
+const setStorageRaw = async map => {
+  if (chrome?.storage?.local) {
+    await chrome.storage.local.set(map)
+    return
+  }
+  for (const [key, value] of Object.entries(map)) {
+    localStorage[key] = value
+  }
+}
 
 // Rendered "last change" stubs for the instant hover tooltip, kept apart
 // from journal_cache on purpose: the tooltip needs hundreds of tiny stubs
@@ -173,40 +191,154 @@ export const getTooltipEntry = async issueId => {
   return tooltipCache.get(Number(issueId))
 }
 
-const flushJournalCache = async () => {
-  clearTimeout(journalCacheFlushTimer)
-  journalCacheFlushTimer = null
+// Hoisted: the debounced scheduler above references it
+async function flushJournalCache () {
+  clearTimeout(journalFlushTimer)
+  journalFlushTimer = null
+  await journalIndexPromise
 
-  if (journalCache.size > MAX_CACHED_ISSUES) {
-    const byAge = [...journalCache.entries()]
-      .sort(([, a], [, b]) => String(b.updated_on).localeCompare(String(a.updated_on)))
+  // Evict beyond the cap by updated_on, newest first; an evicted journal
+  // still deserves an instant tooltip: when its data is in memory, a raw
+  // copy of the last journal is kept for the popup to render lazily
+  // (rendering here is impossible — no i18n in this context)
+  const removals = []
 
-    for (const [id, entry] of byAge.slice(MAX_CACHED_ISSUES)) {
-      // The full journal is dropped, but its last change still deserves an
-      // instant tooltip: keep a raw copy, the popup renders it lazily
-      // (rendering here is impossible — no i18n in this context)
-      const journals = entry.issue?.journals || []
+  if (journalIndex.size > MAX_CACHED_ISSUES) {
+    const byAge = [...journalIndex.entries()]
+      .sort(([, a], [, b]) => String(b).localeCompare(String(a)))
+
+    for (const [id] of byAge.slice(MAX_CACHED_ISSUES)) {
+      const journals = journalCache.get(id)?.issue?.journals || []
       const lastJournal = journals[journals.length - 1]
 
       if (lastJournal) {
-        rememberTooltip(id, { updated_on: entry.updated_on, journal: lastJournal })
+        rememberTooltip(id, { updated_on: journalIndex.get(id), journal: lastJournal })
       }
       journalCache.delete(id)
+      journalIndex.delete(id)
+      dirtyJournals.delete(id)
+      removals.push(JOURNAL_KEY_PREFIX + id)
     }
   }
 
+  const writes = {}
+
+  for (const id of dirtyJournals) {
+    const entry = journalCache.get(id)
+
+    if (entry) {
+      writes[JOURNAL_KEY_PREFIX + id] = JSON.stringify(entry)
+    }
+  }
+  dirtyJournals.clear()
+
   try {
-    await Utils.setStorage(JOURNAL_CACHE_KEY, Object.fromEntries(journalCache))
+    if (Object.keys(writes).length) {
+      await setStorageRaw(writes)
+    }
+    // The index is tiny; persist it on every flush so the stored set stays
+    // enumerable after a context restart
+    await Utils.setStorage(JOURNAL_INDEX_KEY, Object.fromEntries(journalIndex))
+    if (removals.length) {
+      await Utils.removeStorage(removals)
+    }
   } catch {
     // A full quota or a missing storage area only costs the speedup
   }
 }
 
-const rememberIssue = issueData => {
-  journalCache.set(issueData.id, toCacheEntry(issueData))
+const scheduleJournalFlush = () => {
+  if (!journalFlushTimer) {
+    journalFlushTimer = setTimeout(() => {
+      journalFlushTimer = null
+      flushJournalCache()
+    }, 500)
+  }
+}
 
-  if (!journalCacheFlushTimer) {
-    journalCacheFlushTimer = setTimeout(flushJournalCache, 500)
+// Read one issue's cached journal. Bloat is detected by the "size" field
+// written at remember time — no re-serialization of the entry here
+const getCachedIssue = async id => {
+  if (journalCache.has(id)) {
+    return journalCache.get(id)
+  }
+  const entry = await Utils.getStorage(JOURNAL_KEY_PREFIX + id)
+
+  if (entry?.updated_on && entry.issue && entry.size <= JOURNAL_BUDGET * 2) {
+    journalCache.set(id, entry)
+    if (!journalIndex.has(id)) {
+      journalIndex.set(id, entry.updated_on)
+      scheduleJournalFlush()
+    }
+    return entry
+  }
+  journalCache.set(id, null)
+  return null
+}
+
+const rememberIssue = issueData => {
+  const entry = toCacheEntry(issueData)
+
+  // Pre-computed size, so the read-time bloat check never re-serializes
+  entry.size = JSON.stringify(entry).length
+  journalCache.set(issueData.id, entry)
+  journalIndex.set(issueData.id, issueData.updated_on)
+  dirtyJournals.add(issueData.id)
+  scheduleJournalFlush()
+}
+
+// One-time move off the legacy single-key cache: entries within the budget
+// become per-issue keys, bloated legacy ones are dropped (the next access
+// re-fetches them already capped), the old key is removed last. Guarded by
+// a marker key, so it is idempotent whichever context (background, popup)
+// runs it first; the in-memory index is filled too, so a concurrent flush
+// cannot lose the migrated ids
+export const migrateLegacyJournalCache = async () => {
+  try {
+    if (await Utils.getStorage(JOURNAL_MIGRATED_KEY)) {
+      return
+    }
+    const stored = await Utils.getStorage(LEGACY_JOURNAL_CACHE_KEY)
+    const writes = {}
+    const index = {}
+
+    for (const [id, entry] of Object.entries(stored || {})) {
+      if (!entry?.updated_on || !entry.issue) {
+        continue
+      }
+      const sized = { ...entry, size: JSON.stringify(entry).length }
+
+      if (sized.size > JOURNAL_BUDGET) {
+        continue
+      }
+      writes[JOURNAL_KEY_PREFIX + id] = JSON.stringify(sized)
+      index[id] = entry.updated_on
+    }
+
+    let ids = Object.keys(index)
+
+    if (ids.length > MAX_CACHED_ISSUES) {
+      ids = ids.sort((a, b) => String(index[b]).localeCompare(String(index[a])))
+      for (const id of ids.slice(MAX_CACHED_ISSUES)) {
+        delete writes[JOURNAL_KEY_PREFIX + id]
+        delete index[id]
+      }
+    }
+
+    await journalIndexPromise
+    if (Object.keys(writes).length) {
+      await setStorageRaw(writes)
+    }
+    for (const [id, updatedOn] of Object.entries(index)) {
+      journalIndex.set(Number(id), updatedOn)
+    }
+    scheduleJournalFlush()
+    if (stored) {
+      await Utils.removeStorage(LEGACY_JOURNAL_CACHE_KEY)
+    }
+    await Utils.setStorage(JOURNAL_MIGRATED_KEY, 1)
+  } catch (error) {
+    console.error('Legacy journal cache migration failed:', error)
   }
 }
 
@@ -254,8 +386,7 @@ export const getIssueDetail = async (options, issue) => {
   }
 
   // Reuse the persistent copy while the issue has not been updated
-  await journalCachePromise
-  const entry = journalCache.get(issue.id)
+  const entry = await getCachedIssue(issue.id)
 
   if (entry && entry.updated_on === issue.updated_on) {
     detailCache.set(cacheKey, entry.issue)

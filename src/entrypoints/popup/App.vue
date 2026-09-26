@@ -14,6 +14,7 @@
 
     <Issues
       v-else
+      :options="options"
       @select-issue="showIssue"
     />
   </div>

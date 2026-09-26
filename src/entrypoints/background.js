@@ -4,7 +4,7 @@ import Utils, {
   MAX_POLL_INTERVAL,
   MIN_POLL_INTERVAL
 } from '@/utils'
-import { describeLastChange, flushCaches, getIssueDetail } from '@/utils/changes'
+import { describeLastChange, flushCaches, getIssueDetail, migrateLegacyJournalCache } from '@/utils/changes'
 import { onMessage } from '@/utils/messaging'
 
 // vue-i18n does not exist in the service worker; a flat dictionary lookup
@@ -153,6 +153,10 @@ class Background {
     }
 
     this.data = await Utils.getStorage('data') || {}
+
+    // Split the legacy single-key journal cache once; afterwards this is a
+    // no-op marker read, and no context ever loads the whole blob again
+    await migrateLegacyJournalCache()
     return true
   }
 
