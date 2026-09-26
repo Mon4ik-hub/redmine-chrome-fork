@@ -15,6 +15,11 @@ const JOURNAL_CACHE_KEY = 'journal_cache'
 const MAX_CACHED_ISSUES = 40
 const NOTES_CAP = 10000
 const DESCRIPTION_CAP = 50000
+// Long-text custom fields (and description edits) ride inside journal
+// details as FULL old/new values — a monster task carried megabytes there
+// while the byte budget saw only short "id → name" lines. Cap the stored
+// values, and charge the estimate for the capped length
+const DETAIL_VALUE_CAP = 1000
 // One monster task can carry journals measured in megabytes; keeping them
 // all would bloat every cache flush. The newest journals matter (tooltip +
 // notifications since lastRead), so the budget drops the OLDEST ones
@@ -27,9 +32,26 @@ const capText = (text, limit) => {
   return text
 }
 
+const capDetailValue = value => {
+  const capped = capText(value, DETAIL_VALUE_CAP)
+
+  return capped === value ? value : `${capped}…`
+}
+
+const capDetails = details => (details || []).map(detail => ({
+  ...detail,
+  old_value: capDetailValue(detail?.old_value),
+  new_value: capDetailValue(detail?.new_value)
+}))
+
+const valueSize = value => typeof value === 'string' ?
+  Math.min(value.length, DETAIL_VALUE_CAP) : 8
+
 const journalSize = journal =>
   Math.min(String(journal.notes || '').length, NOTES_CAP) +
-  (journal.details?.length || 0) * 128 + 256
+  (journal.details || []).reduce((sum, detail) =>
+    sum + valueSize(detail?.old_value) + valueSize(detail?.new_value) + 64, 0) +
+  256
 
 // Compact copy of a journal, capped to the budget from the newest entry
 // backwards; at least the newest journal always survives
@@ -48,7 +70,7 @@ const capJournals = journals => {
       user: journal.user ? { name: journal.user.name } : undefined,
       created_on: journal.created_on,
       notes: capText(journal.notes, NOTES_CAP),
-      details: journal.details
+      details: capDetails(journal.details)
     })
   }
   return kept
@@ -78,6 +100,12 @@ const journalCachePromise = new Promise(resolve => {
     .then(stored => {
       for (const [id, entry] of Object.entries(stored || {})) {
         if (entry?.updated_on && entry.issue) {
+          // Entries bloated by the pre-cap code (uncapped detail values,
+          // megabytes per issue) are dropped: the next access re-fetches
+          // and re-caps them; the next flush shrinks the stored map
+          if (JSON.stringify(entry).length > JOURNAL_BUDGET * 2) {
+            continue
+          }
           journalCache.set(Number(id), entry)
         }
       }
